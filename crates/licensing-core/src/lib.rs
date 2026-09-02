@@ -14,18 +14,24 @@
 //! - [`ids`]: UUIDv7 generation helpers
 //! - [`time`]: scene/song time interval math
 
+pub mod channels;
 pub mod events;
+pub mod ids;
 pub mod license;
 pub mod role;
+pub mod topics;
 
+pub use channels::{LICENSE_UPDATES, NOTIFICATIONS};
 pub use events::{
     LicenseEvent, LicenseEventKind, LicenseSnapshot, SongEvent, SongEventKind, SongRecord,
 };
+pub use ids::new_id;
 pub use license::{
-    LicenseAction, LicenseState, ParseLicenseStateError, TransitionError, can_transition,
-    transition,
+    can_transition, transition, LicenseAction, LicenseState, ParseLicenseStateError,
+    TransitionError,
 };
 pub use role::{ParseRoleError, Role};
+pub use topics::{LICENSE_EVENTS, SONG_EVENTS};
 
 /// Crate version, exposed for diagnostics.
 pub const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");

@@ -6,6 +6,7 @@ set dotenv-load
 # Compose runner: defaults to podman locally; CI exports COMPOSE="docker compose"
 COMPOSE := env_var_or_default("COMPOSE", "podman compose")
 COMPOSE_FILE := "infrastructure/docker/compose.yml"
+HOST_OVERRIDES := "-f infrastructure/docker/compose.yml -f infrastructure/docker/compose.host-services.yml"
 
 default:
     @just --list
@@ -41,7 +42,8 @@ dev service:
     set -euo pipefail
     db=$(echo "{{service}}" | sed 's/_service//')_db
     export DATABASE_URL="${DATABASE_URL:-postgres://acme:acme_dev_only@localhost:5433/$db}"
-    export JWT_SECRET="${JWT_SECRET:-dev-only-secret}"
+    export JWT_PRIVATE_KEY_FILE="${JWT_PRIVATE_KEY_FILE:-infrastructure/docker/keys/dev-auth-private.pem}"
+    export JWT_PUBLIC_KEY_FILE="${JWT_PUBLIC_KEY_FILE:-infrastructure/docker/keys/dev-auth-public.pem}"
     export SQLX_OFFLINE="${SQLX_OFFLINE:-true}"
     cargo run -p {{service}}
 
@@ -90,6 +92,12 @@ down:
 # Stop the local stack and delete volumes (fresh databases/media)
 nuke:
     {{COMPOSE}} -f {{COMPOSE_FILE}} down -v
+
+# Start the stack in host-dev mode: Kong routes to services running on the
+# host via `just dev <service>` (host.containers.internal)
+up-host:
+    {{COMPOSE}} {{HOST_OVERRIDES}} up -d --wait
+    {{COMPOSE}} {{HOST_OVERRIDES}} run --rm minio-init
 
 # Stack status
 ps:

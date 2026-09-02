@@ -1,0 +1,140 @@
+# Kong Gateway declarative configuration (db-less) — rendered file, do not
+# edit directly. Source: kong.yml.template + keys/dev-auth-public.pem via
+# render_kong_config.py.
+#
+# Kong validates RS256 tokens at the edge (jwt plugin) and forwards the
+# Authorization header upstream, where services verify again with the same
+# public key (ADR-011). Traefik Hub/Envoy-style JWKS consumers can instead
+# fetch auth_service /.well-known/jwks.json.
+
+_format_version: "3.0"
+
+_transform: true
+
+consumers:
+  - username: acme-web
+    jwt_secrets:
+      - algorithm: RS256
+        key: acme-auth
+        rsa_public_key: |
+          -----BEGIN PUBLIC KEY-----
+          MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5eF5vfGnmbJcD/9uRmwi
+          Q5x1OYsvK1K7HnzI6Do6pO8uaTrLiwSAdv82rb9slUSBWldqBTICymGPx3BEQMeh
+          usOAeTSRLUisXGFFMH0jknOmvQkPc/wqQJAnTz/IqsSmZtw5lgMIHTrQ0L8bWD0e
+          k9Mm840ZllZQuW9Gi29PBFWOldnXjKLeKAKxS/JbKJvcR73OuNqwzdJyFF/Sd6LT
+          3IZqhM6ayKmZOgiTxBJxKiY2xoarlviC82EddTH+URpEdJgnoX0gkVcGoEVclcNQ
+          BNsHOMzwd1PZaeKLf8uOfVBjw+Xwv5lQfJN5UC5uswtwaggnnqxXzvPBzXQK8+QR
+          uQIDAQAB
+          -----END PUBLIC KEY-----
+        secret: dummy-not-used-for-rs256
+
+services:
+  # ── auth_service ───────────────────────────────────────────────────────────
+  - name: auth_service
+    url: http://host.containers.internal:8101
+    routes:
+      - name: auth-jwks
+        paths: ["/.well-known"]
+        strip_path: false
+      - name: auth-public
+        paths: ["/auth/login", "/auth/register", "/auth/refresh", "/auth/logout"]
+        strip_path: false
+      - name: auth-protected
+        paths: ["/auth"]
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              claims_to_verify: [exp]
+
+  # ── movie_service ──────────────────────────────────────────────────────────
+  - name: movie_service
+    url: http://host.containers.internal:8102
+    routes:
+      - name: movies
+        paths: ["/movies"]
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              claims_to_verify: [exp]
+
+  # ── song_service ───────────────────────────────────────────────────────────
+  - name: song_service
+    url: http://host.containers.internal:8103
+    routes:
+      - name: songs-manage
+        paths: ["/songs"]
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              claims_to_verify: [exp]
+
+  # ── search_service ─────────────────────────────────────────────────────────
+  - name: search_service
+    url: http://host.containers.internal:8104
+    routes:
+      # Search reads take precedence over song management for these paths;
+      # Kong prefers the longer match.
+      - name: songs-search
+        paths: ["/songs/search"]
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              claims_to_verify: [exp]
+      - name: songs-detail
+        paths: ["/songs/"]
+        strip_path: false
+        methods: [GET]
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              claims_to_verify: [exp]
+
+  # ── license_service ────────────────────────────────────────────────────────
+  - name: license_service
+    url: http://host.containers.internal:8105
+    routes:
+      - name: licenses
+        paths: ["/licenses"]
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              claims_to_verify: [exp]
+
+  # ── notification_service ───────────────────────────────────────────────────
+  - name: notification_service
+    url: http://host.containers.internal:8106
+    routes:
+      - name: notifications
+        paths: ["/notifications"]
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              claims_to_verify: [exp]
+
+# Global CORS for the frontend dev server. The cors plugin terminates OPTIONS
+# preflights before the jwt plugin evaluates them, so preflights need no token.
+plugins:
+  - name: cors
+    config:
+      origins: [http://localhost:5173]
+      methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
+      headers:
+        - Authorization
+        - Content-Type
+        - If-Match
+      credentials: true
+      max_age: 3600
+      preflight_continue: false

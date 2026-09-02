@@ -1,0 +1,11 @@
+# Override for developing services on the host (`just dev <service>`) while
+# Kong runs in containers: routes upstream traffic to the host via
+# host.containers.internal and swaps in the host-dev Kong config.
+#
+# Usage: just up-host
+services:
+  kong:
+    environment:
+      KONG_DECLARATIVE_CONFIG: /kong/kong.host-dev.yml
+    volumes:
+      - ./kong/kong.host-dev.yml:/kong/kong.host-dev.yml:ro

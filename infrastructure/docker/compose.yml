@@ -145,29 +145,30 @@ services:
       - "1026:1025"
     networks: [acme]
 
-  # ── Traefik: L7 gateway with forward-auth ───────────────────────────────────
-  # web (:80, published 8080) is the API entrypoint; the insecure API/dashboard
-  # (:8080, published 8081 for dev only) doubles as the healthcheck target.
-  traefik:
-    image: traefik:v3.3
-    command:
-      - --api.dashboard=true
-      - --api.insecure=true
-      - --entrypoints.web.address=:80
-      - --providers.file.directory=/etc/traefik/dynamic
-      - --providers.file.watch=true
-      - --accesslog=true
+  # ── Kong: L7 gateway, db-less with declarative config ──────────────────────
+  # Proxy on :8000 (published 8080); status listener :8100 serves healthchecks.
+  # Routing, CORS, and RS256 JWT validation at the edge (ADR-011); services
+  # verify again with the same public key (defense in depth).
+  kong:
+    image: kong:3.9
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_STATUS_LISTEN: 0.0.0.0:8100
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_LOG_LEVEL: notice
     ports:
-      - "8080:80"
-      - "8081:8080"
+      - "8080:8000"
+      - "8081:8001"
     volumes:
       # NB: single-file mount — podman on macOS does not propagate host
-      # directory mounts (applehv/virtiofs limitation); the file provider
-      # still loads it from the directory path.
-      - ./traefik/dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
+      # directory mounts (applehv/virtiofs limitation).
+      - ./kong/kong.yml:/kong/kong.yml:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/version >/dev/null 2>&1 || exit 1"]
-      interval: 5s
-      timeout: 3s
+      test: ["CMD-SHELL", "kong health || exit 1"]
+      interval: 10s
+      timeout: 5s
       retries: 12
+      start_period: 15s
     networks: [acme]

@@ -1,0 +1,32 @@
+# Local development stack (ADR index: docs/architecture/README.md).
+#
+# Engine-agnostic compose-spec file: `podman compose` locally (see justfile),
+# `docker compose` in CI. Host ports avoid conflicts with common local tools
+# (postgres on 5433, mailpit SMTP on 1026, gateway on 8080).
+
+name: acme-licensing
+
+networks:
+  acme:
+
+volumes:
+  pg_data:
+
+services:
+  # ── Postgres: one logical database per service ──────────────────────────────
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-acme}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-acme_dev_only}
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/10-databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-acme}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [acme]

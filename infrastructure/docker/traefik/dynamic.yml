@@ -16,6 +16,7 @@ http:
         authResponseHeaders:
           - X-User-Id
           - X-User-Role
+          - X-User-Org
 
     auth-studio:
       forwardAuth:
@@ -23,6 +24,7 @@ http:
         authResponseHeaders:
           - X-User-Id
           - X-User-Role
+          - X-User-Org
 
     auth-label:
       forwardAuth:
@@ -30,6 +32,7 @@ http:
         authResponseHeaders:
           - X-User-Id
           - X-User-Role
+          - X-User-Org
 
     auth-admin:
       forwardAuth:
@@ -37,6 +40,7 @@ http:
         authResponseHeaders:
           - X-User-Id
           - X-User-Role
+          - X-User-Org
 
     # ── Cross-origin (frontend dev server) ────────────────────────────────────
     cors-dev:

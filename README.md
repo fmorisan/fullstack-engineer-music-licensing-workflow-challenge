@@ -22,8 +22,7 @@ Your task is to create a simple system to:
 
 - **Backend:** You can use any stack you're comfortable with, but we recommend using any of the following:
   - TypeScript + NestJS (you can use Fastify or Koa if you prefer)
-  - Python + FastAPI (you can use Flask or Django if you prefer)
-  - Go + Fiber (you can use Gin or Echo if you prefer)
+  - Rust + Axum (you can use ActixWeb if you prefer)
 - **API:** REST and/or GraphQL (you choose, and justify your choice if you only use one)
 - **Frontend:** React (using any framework such as Next.js, Remix, or bare metal with Vite)
 - **Database:** PostgreSQL (primary), MongoDB (optional if needed)

@@ -1,12 +1,12 @@
-//! auth_service: user CRUD, credentials, JWT issuance, and `GET /verify` for
-//! Traefik forward-auth (see
-//! `docs/architecture/02-adr-traefik-forward-auth-gateway.md`).
+//! auth_service: user CRUD, credentials, RS256 token issuance with a JWKS
+//! endpoint, and rotating refresh sessions (see
+//! `docs/architecture/11-adr-asymmetric-jwts-kong-edge.md`).
 
 pub mod config;
 pub mod db;
 pub mod error;
 pub mod handlers;
-pub mod jwt;
+pub mod keys;
 pub mod models;
 pub mod password;
 pub mod state;
@@ -14,6 +14,8 @@ pub mod state;
 use axum::Json;
 use axum::Router;
 use axum::routing::{get, post};
+use platform::JwtAuth;
+use platform::require_auth;
 use serde_json::json;
 
 use crate::state::AppState;
@@ -22,13 +24,23 @@ use crate::state::AppState;
 pub const SERVICE_NAME: &str = "auth_service";
 
 /// Build the application router with the given shared state.
+///
+/// `/auth/register`, `/auth/login`, and `/.well-known/jwks.json` are public;
+/// `/auth/me` is protected by the platform `require_auth` middleware.
 pub fn build_router(state: AppState) -> Router {
+    let protected = Router::new()
+        .route("/auth/me", get(handlers::auth::me))
+        .layer(axum::middleware::from_fn_with_state(
+            JwtAuth::from_public_key_pem(state.signing().public_pem.clone()),
+            require_auth,
+        ));
+
     Router::new()
         .route("/auth/register", post(handlers::auth::register))
         .route("/auth/login", post(handlers::auth::login))
-        .route("/auth/me", get(handlers::auth::me))
-        .route("/verify", get(handlers::verify::verify))
+        .route("/.well-known/jwks.json", get(handlers::auth::jwks))
         .route("/healthz", get(healthz))
+        .merge(protected)
         .with_state(state)
 }
 
@@ -40,12 +52,13 @@ async fn healthz() -> Json<serde_json::Value> {
 ///
 /// # Errors
 ///
-/// Fails when the database is unreachable, migrations fail, the listener
-/// cannot be bound, or serving fails.
+/// Fails when the database is unreachable, migrations fail, keys cannot be
+/// loaded, the listener cannot be bound, or serving fails.
 pub async fn run(config: config::Config) -> anyhow::Result<()> {
     let pool = db::connect(&config.database_url).await?;
     db::migrate(&pool).await?;
-    let state = AppState::new(pool, config.jwt_secret.clone(), config.jwt_expiry_secs);
+    let signing = keys::SigningKeys::from_private_key_file(&config.jwt_private_key_file)?;
+    let state = AppState::new(pool, signing, config.jwt_expiry_secs);
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", config.port)).await?;
     tracing::info!(service = SERVICE_NAME, port = config.port, "listening");
     axum::serve(listener, build_router(state)).await?;

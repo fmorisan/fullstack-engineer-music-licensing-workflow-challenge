@@ -1,6 +1,6 @@
 [package]
 name = "auth_service"
-description = "Authentication: user CRUD, credentials, JWT issuance, and /verify for Traefik forward-auth."
+description = "Authentication: user CRUD, credentials, RS256 token issuance with JWKS, rotating refresh sessions."
 edition.workspace = true
 version.workspace = true
 license.workspace = true
@@ -18,6 +18,10 @@ serde_json = { workspace = true }
 sqlx = { workspace = true }
 jsonwebtoken = { workspace = true }
 argon2 = { workspace = true }
+rsa = { workspace = true }
+base64 = { workspace = true }
+sha2 = { workspace = true }
+rand_core = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }

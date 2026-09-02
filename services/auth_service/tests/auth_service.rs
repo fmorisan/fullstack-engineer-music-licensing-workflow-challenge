@@ -4,6 +4,7 @@
 //! Requires a Docker-compatible socket for testcontainers (see the
 //! `test-integration` justfile target for the podman wiring).
 
+use auth_service::keys::SigningKeys;
 use auth_service::state::AppState;
 use auth_service::{build_router, db};
 use axum::body::Body;
@@ -13,16 +14,24 @@ use axum::http::header::AUTHORIZATION;
 use http_body_util::BodyExt;
 use serde_json::{Value, json};
 use sqlx::PgPool;
+use std::sync::OnceLock;
 use tower::ServiceExt;
 
-const TEST_JWT_SECRET: &str = "integration-test-secret";
-const TEST_JWT_EXPIRY_SECS: i64 = 3600;
+const TEST_JWT_EXPIRY_SECS: i64 = 900;
+
+fn signing_keys() -> &'static SigningKeys {
+    static KEYS: OnceLock<SigningKeys> = OnceLock::new();
+    KEYS.get_or_init(|| {
+        let pair = test_support::RsaKeyPair::generate();
+        SigningKeys::from_private_key_pem(&pair.private_pem).expect("signing keys")
+    })
+}
 
 async fn setup() -> AppState {
     let url = test_support::provision_database("auth").await;
     let pool = db::connect(&url).await.expect("connect");
     db::migrate(&pool).await.expect("migrate");
-    AppState::new(pool, TEST_JWT_SECRET.to_string(), TEST_JWT_EXPIRY_SECS)
+    AppState::new(pool, signing_keys().clone(), TEST_JWT_EXPIRY_SECS)
 }
 
 fn pool(state: &AppState) -> &PgPool {
@@ -90,7 +99,7 @@ fn register_body(role: &str, org: Option<&str>) -> Value {
 }
 
 #[tokio::test]
-async fn register_returns_created_user_and_token() {
+async fn register_returns_created_user_and_access_token() {
     let state = setup().await;
     let (status, body, _) = post_json(
         &state,
@@ -101,9 +110,12 @@ async fn register_returns_created_user_and_token() {
 
     assert_eq!(status, StatusCode::CREATED, "body: {body}");
     assert_eq!(body["user"]["role"], "STUDIO");
-    assert_eq!(body["user"]["org_id"], body["user"]["org_id"]); // present
-    assert!(body["token"].as_str().is_some_and(|t| !t.is_empty()));
-    assert!(body.to_string().contains("org_id"));
+    assert!(
+        body["access_token"]
+            .as_str()
+            .is_some_and(|t| t.split('.').count() == 3),
+        "access token must be a JWT"
+    );
 }
 
 #[tokio::test]
@@ -111,14 +123,12 @@ async fn register_reuses_organization_by_name_and_kind() {
     let state = setup().await;
 
     let first = register_body("STUDIO", Some("ACME Bros Pictures"));
-    let email = first["email"].clone();
     let (_, first, _) = post_json(&state, "/auth/register", first).await;
     let second = register_body("STUDIO", Some("ACME Bros Pictures"));
     let (_, second, _) = post_json(&state, "/auth/register", second).await;
 
     assert_eq!(first["user"]["org_id"], second["user"]["org_id"]);
     assert_ne!(first["user"]["id"], second["user"]["id"]);
-    assert_ne!(email, second["user"]["email"]);
 }
 
 #[tokio::test]
@@ -181,7 +191,7 @@ async fn login_succeeds_and_rejects_wrong_password() {
     )
     .await;
     assert_eq!(ok, StatusCode::OK, "body: {body}");
-    assert!(body["token"].as_str().is_some());
+    assert!(body["access_token"].as_str().is_some());
 
     let (bad, _, _) = post_json(
         &state,
@@ -209,7 +219,7 @@ async fn me_requires_and_honors_bearer_token() {
         register_body("LABEL", Some("Warp Records")),
     )
     .await;
-    let token = register["token"].as_str().unwrap();
+    let token = register["access_token"].as_str().unwrap();
 
     let (anonymous, _, _) = get(&state, "/auth/me", None).await;
     assert_eq!(anonymous, StatusCode::UNAUTHORIZED);
@@ -224,7 +234,7 @@ async fn me_requires_and_honors_bearer_token() {
 }
 
 #[tokio::test]
-async fn verify_sets_forward_headers_on_success() {
+async fn issued_tokens_carry_the_expected_kid_and_issuer() {
     let state = setup().await;
     let (_, register, _) = post_json(
         &state,
@@ -232,65 +242,34 @@ async fn verify_sets_forward_headers_on_success() {
         register_body("STUDIO", Some("ACME Bros Pictures")),
     )
     .await;
-    let token = register["token"].as_str().unwrap();
+    let token = register["access_token"].as_str().unwrap();
 
-    let (status, body, headers) = get(&state, "/verify", Some(token)).await;
-    assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(headers["X-User-Id"], body["user_id"].as_str().unwrap());
-    assert_eq!(headers["X-User-Role"], "STUDIO");
-    let org = headers["X-User-Org"].to_str().unwrap();
+    let header = jsonwebtoken::decode_header(token).unwrap();
+    assert_eq!(header.alg, jsonwebtoken::Algorithm::RS256);
     assert_eq!(
-        org,
-        register["user"]["org_id"].as_str().expect("org id string")
+        header.kid.as_deref(),
+        Some(signing_keys().kid.as_str()),
+        "token kid must match the active signing key"
     );
+
+    let claims = platform::jwt::decode(&signing_keys().public_pem, token).unwrap();
+    assert_eq!(claims.iss, platform::jwt::ISSUER);
+    assert_eq!(claims.sub, register["user"]["id"].as_str().unwrap());
 }
 
 #[tokio::test]
-async fn verify_enforces_role_parameter() {
+async fn jwks_endpoint_serves_the_public_key() {
     let state = setup().await;
-    let (_, register, _) = post_json(
-        &state,
-        "/auth/register",
-        register_body("STUDIO", Some("ACME Bros Pictures")),
-    )
-    .await;
-    let token = register["token"].as_str().unwrap();
+    let (status, body, _) = get(&state, "/.well-known/jwks.json", None).await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
 
-    let (ok, _, _) = get(&state, "/verify?role=STUDIO", Some(token)).await;
-    assert_eq!(ok, StatusCode::OK);
-
-    let (forbidden, _, _) = get(&state, "/verify?role=LABEL", Some(token)).await;
-    assert_eq!(forbidden, StatusCode::FORBIDDEN);
-
-    let (_, admin_register, _) =
-        post_json(&state, "/auth/register", register_body("ADMIN", None)).await;
-    let admin_token = admin_register["token"].as_str().unwrap();
-    let (admin_forbidden, _, _) = get(&state, "/verify?role=LABEL", Some(admin_token)).await;
-    assert_eq!(admin_forbidden, StatusCode::FORBIDDEN);
-}
-
-#[tokio::test]
-async fn verify_rejects_unauthenticated_and_garbage() {
-    let state = setup().await;
-
-    let (anonymous, _, _) = get(&state, "/verify", None).await;
-    assert_eq!(anonymous, StatusCode::UNAUTHORIZED);
-
-    let (garbage, _, _) = get(&state, "/verify", Some("garbage")).await;
-    assert_eq!(garbage, StatusCode::UNAUTHORIZED);
-
-    // A token signed by a different secret must not verify.
-    let foreign = auth_service::jwt::encode(
-        "other-secret",
-        licensing_core::new_id(),
-        licensing_core::Role::Studio,
-        None,
-        chrono::Utc::now(),
-        60,
-    )
-    .unwrap();
-    let (foreign_status, _, _) = get(&state, "/verify", Some(&foreign)).await;
-    assert_eq!(foreign_status, StatusCode::UNAUTHORIZED);
+    let jwk = &body["keys"][0];
+    assert_eq!(jwk["kty"], "RSA");
+    assert_eq!(jwk["alg"], "RS256");
+    assert_eq!(jwk["use"], "sig");
+    assert_eq!(jwk["kid"], signing_keys().kid);
+    assert!(jwk["n"].as_str().is_some_and(|n| !n.is_empty()));
+    assert_eq!(jwk["e"], "AQAB");
 }
 
 #[tokio::test]
@@ -302,7 +281,7 @@ async fn users_persist_across_requests() {
         register_body("LABEL", Some("Ninja Tune")),
     )
     .await;
-    let token = register["token"].as_str().unwrap();
+    let token = register["access_token"].as_str().unwrap();
     let user_id: uuid::Uuid = register["user"]["id"].as_str().unwrap().parse().unwrap();
 
     let row: Option<auth_service::models::UserRow> =

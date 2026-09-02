@@ -1,15 +1,15 @@
-//! Registration, login, and profile endpoints.
+//! Registration, login, profile, and JWKS endpoints.
 
+use axum::Extension;
 use axum::Json;
 use axum::extract::State;
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 use chrono::{DateTime, Utc};
 use licensing_core::Role;
+use platform::AuthenticatedUser;
 use serde::Deserialize;
 
-use super::authenticate;
 use crate::error::{ApiError, ApiResult};
-use crate::jwt;
 use crate::models::{UserDto, UserRow};
 use crate::password;
 use crate::state::AppState;
@@ -38,13 +38,13 @@ pub struct LoginRequest {
     pub password: String,
 }
 
-/// Successful auth response: the user plus a freshly minted token.
+/// Successful auth response: the user plus a freshly minted access token.
 #[derive(Debug, serde::Serialize)]
 pub struct AuthResponse {
     /// Public user view.
     pub user: UserDto,
-    /// Bearer token.
-    pub token: String,
+    /// RS256 bearer token.
+    pub access_token: String,
 }
 
 /// An email shape we accept: something@something, no spaces.
@@ -67,7 +67,7 @@ fn map_unique_violation(err: sqlx::Error, message: &str) -> ApiError {
 /// `POST /auth/register`
 ///
 /// Creates the organization on first use (idempotent on name+kind) and the
-/// user in one transaction, returning `201` with user + token.
+/// user in one transaction, returning `201` with user + access token.
 ///
 /// # Errors
 ///
@@ -164,7 +164,7 @@ pub async fn register(
         StatusCode::CREATED,
         Json(AuthResponse {
             user: user.to_dto(),
-            token,
+            access_token: token,
         }),
     ))
 }
@@ -195,7 +195,7 @@ pub async fn login(
             let token = mint(&state, &user, Utc::now())?;
             Ok(Json(AuthResponse {
                 user: user.to_dto(),
-                token,
+                access_token: token,
             }))
         }
         // Burn a comparable amount of time for unknown emails so login
@@ -207,24 +207,45 @@ pub async fn login(
     }
 }
 
-/// `GET /auth/me`
+/// `GET /auth/me` — identity comes from the platform auth middleware.
 ///
 /// # Errors
 ///
-/// `401` without a valid bearer token.
-pub async fn me(State(state): State<AppState>, headers: HeaderMap) -> ApiResult<Json<UserDto>> {
-    let user = authenticate(&state, &headers).await?;
-    Ok(Json(user.to_dto()))
+/// `401` when the principal no longer matches a persisted user.
+pub async fn me(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthenticatedUser>,
+) -> ApiResult<Json<UserDto>> {
+    let row = sqlx::query_as!(
+        UserRow,
+        r#"SELECT id, email, password_hash, display_name, role, org_id, created_at, updated_at
+           FROM users WHERE id = $1"#,
+        user.user_id,
+    )
+    .fetch_optional(state.pool())
+    .await
+    .map_err(ApiError::from)?
+    .ok_or(ApiError::Unauthorized)?;
+    Ok(Json(row.to_dto()))
+}
+
+/// `GET /.well-known/jwks.json` — public signing keys (ADR-011).
+///
+/// Consumed by production edge proxies (Traefik Hub `jwksUrl`, Kong
+/// Enterprise, Envoy) and anyone wanting asymmetric verification.
+pub async fn jwks(State(state): State<AppState>) -> Json<serde_json::Value> {
+    Json(state.signing().jwks.clone())
 }
 
 fn mint(state: &AppState, user: &UserRow, now: DateTime<Utc>) -> ApiResult<String> {
-    jwt::encode(
-        state.jwt_secret(),
-        user.id,
-        user.domain_role(),
-        user.org_id,
-        now,
-        state.jwt_expiry_secs(),
-    )
-    .map_err(ApiError::from)
+    let claims = platform::jwt::Claims {
+        sub: user.id.to_string(),
+        role: user.domain_role(),
+        org_id: user.org_id,
+        iss: platform::jwt::ISSUER.to_string(),
+        iat: now.timestamp(),
+        exp: now.timestamp() + state.jwt_expiry_secs(),
+    };
+    platform::jwt::encode(&state.signing().private_pem, &claims)
+        .map_err(|err| ApiError::Internal(err.into()))
 }

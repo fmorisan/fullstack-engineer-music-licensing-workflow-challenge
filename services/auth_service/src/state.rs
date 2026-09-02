@@ -4,6 +4,8 @@ use std::sync::Arc;
 
 use sqlx::PgPool;
 
+use crate::keys::SigningKeys;
+
 /// Cheaply cloneable state handed to every handler.
 #[derive(Clone)]
 pub struct AppState {
@@ -12,17 +14,17 @@ pub struct AppState {
 
 struct Inner {
     pool: PgPool,
-    jwt_secret: String,
+    signing: SigningKeys,
     jwt_expiry_secs: i64,
 }
 
 impl AppState {
     /// Assemble the state.
-    pub fn new(pool: PgPool, jwt_secret: String, jwt_expiry_secs: i64) -> Self {
+    pub fn new(pool: PgPool, signing: SigningKeys, jwt_expiry_secs: i64) -> Self {
         Self {
             inner: Arc::new(Inner {
                 pool,
-                jwt_secret,
+                signing,
                 jwt_expiry_secs,
             }),
         }
@@ -34,13 +36,13 @@ impl AppState {
         &self.inner.pool
     }
 
-    /// JWT signing secret.
+    /// Active signing keys.
     #[must_use]
-    pub fn jwt_secret(&self) -> &str {
-        &self.inner.jwt_secret
+    pub fn signing(&self) -> &SigningKeys {
+        &self.inner.signing
     }
 
-    /// Token lifetime in seconds.
+    /// Access-token lifetime in seconds.
     #[must_use]
     pub fn jwt_expiry_secs(&self) -> i64 {
         self.inner.jwt_expiry_secs

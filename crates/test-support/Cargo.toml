@@ -15,3 +15,5 @@ sqlx = { workspace = true }
 testcontainers = { workspace = true }
 testcontainers-modules = { workspace = true }
 anyhow = { workspace = true }
+rsa = { workspace = true }
+rand_core = { workspace = true }

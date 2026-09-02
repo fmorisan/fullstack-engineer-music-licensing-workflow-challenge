@@ -1,12 +1,19 @@
 //! # platform
 //!
 //! Infrastructure adapters shared by services (see
-//! `docs/architecture/01-adr-rust-axum-microservices.md`): the transactional
-//! outbox relay, Kafka producer/consumer wrappers, Redis `PubSub` fan-out, SSE
-//! stream helpers, and tracing/config bootstrap.
+//! `docs/architecture/01-adr-rust-axum-microservices.md`): RS256 JWT
+//! authentication, the transactional outbox relay, Kafka producer/consumer
+//! wrappers, Redis PubSub fan-out, SSE stream helpers, and tracing/config
+//! bootstrap.
 //!
-//! Introduced incrementally from Phase 2b onward; services keep their domain
-//! logic in `licensing-core` and their I/O wiring thin.
+//! Services keep their domain logic in `licensing-core` and their I/O wiring
+//! thin.
+
+pub mod auth;
+pub mod jwt;
+
+pub use auth::{AuthError, AuthenticatedUser, JwtAuth, require_auth};
+pub use jwt::{Claims, ISSUER, JwtError, decode, encode, key_id};
 
 /// Crate version, exposed for diagnostics.
 pub const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");

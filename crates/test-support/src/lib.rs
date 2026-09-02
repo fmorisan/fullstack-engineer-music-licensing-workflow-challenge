@@ -9,6 +9,8 @@
 //! the podman machine socket via `DOCKER_HOST` (see the `test-integration`
 //! justfile target).
 
+pub mod keys;
 pub mod postgres;
 
+pub use keys::RsaKeyPair;
 pub use postgres::provision_database;

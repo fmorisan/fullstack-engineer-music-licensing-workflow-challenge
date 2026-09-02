@@ -5,6 +5,7 @@ members = [
     "crates/platform",
     "crates/test-support",
     "services/auth_service",
+    "services/movie_service",
 ]
 
 [workspace.package]

@@ -1,0 +1,20 @@
+[package]
+name = "movie_service"
+description = "Movies and scenes CRUD with temporal overlap protection, plus pre-signed media uploads."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+licensing-core = { workspace = true }
+platform = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }

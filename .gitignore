@@ -1,0 +1,29 @@
+# Rust
+/target
+**/*.rs.bk
+.sqlx/
+
+# Node (frontend only)
+frontend/node_modules
+frontend/dist
+frontend/coverage
+frontend/.vite
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Infrastructure
+infrastructure/docker/data/
+
+# Editors / OS
+.DS_Store
+.idea
+.vscode
+*.swp
+
+# Test artifacts
+/playwright-report
+/test-results
+coverage/

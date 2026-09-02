@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE songs\n         SET title = $3, author = $4, length_seconds = $5,\n             box_art_key = COALESCE($6, box_art_key),\n             audio_preview_key = COALESCE($7, audio_preview_key),\n             updated_at = now()\n         WHERE id = $1 AND label_id = $2\n         RETURNING id, label_id, title, author, length_seconds, box_art_key,\n                   audio_preview_key, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "label_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "author",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "length_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "box_art_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "audio_preview_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "257a52dfac942a18d132aa13dde94e1173c795ac8d662d7acc2912232383e773"
+}

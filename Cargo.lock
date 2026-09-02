@@ -3238,13 +3238,21 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "chrono",
+ "http-body-util",
  "licensing-core",
  "platform",
+ "reqwest",
  "serde",
  "serde_json",
+ "sqlx",
+ "test-support",
+ "thiserror",
  "tokio",
+ "tower",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

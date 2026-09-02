@@ -14,9 +14,13 @@
 //! - [`ids`]: UUIDv7 generation helpers
 //! - [`time`]: scene/song time interval math
 
+pub mod events;
 pub mod license;
 pub mod role;
 
+pub use events::{
+    LicenseEvent, LicenseEventKind, LicenseSnapshot, SongEvent, SongEventKind, SongRecord,
+};
 pub use license::{
     LicenseAction, LicenseState, ParseLicenseStateError, TransitionError, can_transition,
     transition,

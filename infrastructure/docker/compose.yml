@@ -134,3 +134,13 @@ services:
       retries: 12
       start_period: 30s
     networks: [acme]
+
+  # ── Mailpit: email capture (web UI + API :8025, SMTP :1025) ─────────────────
+  # No container healthcheck: scratch image has no shell; the HTTP :8025
+  # listener doubles as the readiness signal for dependent tooling.
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    ports:
+      - "8025:8025"
+      - "1026:1025"
+    networks: [acme]

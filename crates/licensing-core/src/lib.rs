@@ -2,15 +2,21 @@
 //!
 //! Pure domain logic shared by all services. This crate performs no I/O and
 //! depends on no infrastructure crates; it exists so that the license state
-//! machine, role model, event schemas, and Kafka topic contracts have exactly
-//! one authoritative implementation (see `docs/architecture/01-adr-rust-axum-microservices.md`).
+//! machine, role model, event schemas, and bus naming contracts have exactly
+//! one authoritative implementation (see
+//! `docs/architecture/01-adr-rust-axum-microservices.md` and `AGENTS.md`).
 //!
-//! Populated in Phase 2:
-//! - [`LicenseState`] transition table (role x state -> allowed transitions)
-//! - [`Role`] model (STUDIO / LABEL / ADMIN)
-//! - serde event schemas for `song.*` and `license.updated` topics
-//! - Kafka topic name constants
-//! - `UUIDv7` helpers
+//! ## Modules
+//! - [`role`]: user roles and their wire names
+//! - [`license`]: the license negotiation state machine
+//! - [`events`]: Kafka event contracts for `song.events` and `license.events`
+//! - [`topics`] / [`channels`]: Kafka topic and Redis PubSub channel names
+//! - [`ids`]: UUIDv7 generation helpers
+//! - [`time`]: scene/song time interval math
+
+pub mod role;
+
+pub use role::{ParseRoleError, Role};
 
 /// Crate version, exposed for diagnostics.
 pub const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");

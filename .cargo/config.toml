@@ -1,0 +1,6 @@
+# Workspace-level cargo environment.
+# SQLx compile-time checked queries default to offline mode using the
+# committed .sqlx metadata; `cargo sqlx prepare --workspace` with a live
+# DATABASE_URL regenerates it after query changes.
+[env]
+SQLX_OFFLINE = "true"

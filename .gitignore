@@ -1,7 +1,6 @@
 # Rust
 /target
 **/*.rs.bk
-.sqlx/
 
 # Node (frontend only)
 frontend/node_modules

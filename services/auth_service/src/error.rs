@@ -48,3 +48,9 @@ impl IntoResponse for ApiError {
 
 /// Handler result alias.
 pub type ApiResult<T> = Result<T, ApiError>;
+
+impl From<sqlx::Error> for ApiError {
+    fn from(err: sqlx::Error) -> Self {
+        Self::Internal(err.into())
+    }
+}

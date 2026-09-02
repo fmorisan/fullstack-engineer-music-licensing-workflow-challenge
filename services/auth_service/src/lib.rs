@@ -3,9 +3,12 @@
 //! `docs/architecture/02-adr-traefik-forward-auth-gateway.md`).
 
 pub mod config;
+pub mod db;
 pub mod error;
 pub mod jwt;
+pub mod models;
 pub mod password;
+pub mod state;
 
 use axum::Json;
 use axum::Router;

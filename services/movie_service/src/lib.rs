@@ -22,9 +22,10 @@ use crate::state::AppState;
 /// Service name used in logs and health payloads.
 pub const SERVICE_NAME: &str = "movie_service";
 
-/// Build the application router; all routes require authentication.
+/// Build the application router; all routes except `/healthz` require
+/// authentication.
 pub fn build_router(state: AppState, auth: JwtAuth) -> Router {
-    Router::new()
+    let protected = Router::new()
         .route(
             "/movies",
             get(handlers::movies::list).post(handlers::movies::create),
@@ -43,8 +44,11 @@ pub fn build_router(state: AppState, auth: JwtAuth) -> Router {
             "/movies/{id}/scenes/{scene_number}/capture",
             put(handlers::media::capture),
         )
+        .layer(axum::middleware::from_fn_with_state(auth, require_auth));
+
+    Router::new()
         .route("/healthz", get(healthz))
-        .layer(axum::middleware::from_fn_with_state(auth, require_auth))
+        .merge(protected)
         .with_state(state)
 }
 

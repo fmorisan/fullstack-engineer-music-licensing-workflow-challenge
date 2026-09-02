@@ -1,6 +1,12 @@
 # ADR-002: Traefik + forward-auth in place of a dedicated api_gateway service
 
-**Status:** Accepted (deviation from 00-design.md)
+**Status:** Superseded by [ADR-011](./11-adr-asymmetric-jwts-kong-edge.md)
+
+> The forward-auth design shipped and worked, but the per-request hop to
+> auth_service proved redundant for stateless tokens, and OSS Traefik has no
+> in-process JWT middleware. ADR-011 replaces Traefik with Kong and moves
+> verification to a shared platform middleware + the gateway edge using
+> asymmetric keys. The trade-off analysis below is preserved for history.
 
 ## Context
 

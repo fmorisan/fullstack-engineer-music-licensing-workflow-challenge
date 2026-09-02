@@ -224,6 +224,76 @@ async fn me_requires_and_honors_bearer_token() {
 }
 
 #[tokio::test]
+async fn verify_sets_forward_headers_on_success() {
+    let state = setup().await;
+    let (_, register, _) = post_json(
+        &state,
+        "/auth/register",
+        register_body("STUDIO", Some("ACME Bros Pictures")),
+    )
+    .await;
+    let token = register["token"].as_str().unwrap();
+
+    let (status, body, headers) = get(&state, "/verify", Some(token)).await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(headers["X-User-Id"], body["user_id"].as_str().unwrap());
+    assert_eq!(headers["X-User-Role"], "STUDIO");
+    let org = headers["X-User-Org"].to_str().unwrap();
+    assert_eq!(
+        org,
+        register["user"]["org_id"].as_str().expect("org id string")
+    );
+}
+
+#[tokio::test]
+async fn verify_enforces_role_parameter() {
+    let state = setup().await;
+    let (_, register, _) = post_json(
+        &state,
+        "/auth/register",
+        register_body("STUDIO", Some("ACME Bros Pictures")),
+    )
+    .await;
+    let token = register["token"].as_str().unwrap();
+
+    let (ok, _, _) = get(&state, "/verify?role=STUDIO", Some(token)).await;
+    assert_eq!(ok, StatusCode::OK);
+
+    let (forbidden, _, _) = get(&state, "/verify?role=LABEL", Some(token)).await;
+    assert_eq!(forbidden, StatusCode::FORBIDDEN);
+
+    let (_, admin_register, _) =
+        post_json(&state, "/auth/register", register_body("ADMIN", None)).await;
+    let admin_token = admin_register["token"].as_str().unwrap();
+    let (admin_forbidden, _, _) = get(&state, "/verify?role=LABEL", Some(admin_token)).await;
+    assert_eq!(admin_forbidden, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn verify_rejects_unauthenticated_and_garbage() {
+    let state = setup().await;
+
+    let (anonymous, _, _) = get(&state, "/verify", None).await;
+    assert_eq!(anonymous, StatusCode::UNAUTHORIZED);
+
+    let (garbage, _, _) = get(&state, "/verify", Some("garbage")).await;
+    assert_eq!(garbage, StatusCode::UNAUTHORIZED);
+
+    // A token signed by a different secret must not verify.
+    let foreign = auth_service::jwt::encode(
+        "other-secret",
+        licensing_core::new_id(),
+        licensing_core::Role::Studio,
+        None,
+        chrono::Utc::now(),
+        60,
+    )
+    .unwrap();
+    let (foreign_status, _, _) = get(&state, "/verify", Some(&foreign)).await;
+    assert_eq!(foreign_status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
 async fn users_persist_across_requests() {
     let state = setup().await;
     let (_, register, _) = post_json(

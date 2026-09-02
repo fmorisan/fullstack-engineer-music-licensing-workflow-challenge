@@ -27,6 +27,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/auth/register", post(handlers::auth::register))
         .route("/auth/login", post(handlers::auth::login))
         .route("/auth/me", get(handlers::auth::me))
+        .route("/verify", get(handlers::verify::verify))
         .route("/healthz", get(healthz))
         .with_state(state)
 }

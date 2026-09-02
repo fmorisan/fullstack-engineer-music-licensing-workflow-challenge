@@ -144,3 +144,30 @@ services:
       - "8025:8025"
       - "1026:1025"
     networks: [acme]
+
+  # ── Traefik: L7 gateway with forward-auth ───────────────────────────────────
+  # web (:80, published 8080) is the API entrypoint; the insecure API/dashboard
+  # (:8080, published 8081 for dev only) doubles as the healthcheck target.
+  traefik:
+    image: traefik:v3.3
+    command:
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --entrypoints.web.address=:80
+      - --providers.file.directory=/etc/traefik/dynamic
+      - --providers.file.watch=true
+      - --accesslog=true
+    ports:
+      - "8080:80"
+      - "8081:8080"
+    volumes:
+      # NB: single-file mount — podman on macOS does not propagate host
+      # directory mounts (applehv/virtiofs limitation); the file provider
+      # still loads it from the directory path.
+      - ./traefik/dynamic.yml:/etc/traefik/dynamic/dynamic.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/version >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    networks: [acme]

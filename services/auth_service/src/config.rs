@@ -5,6 +5,9 @@ use anyhow::{Context, Result};
 /// Default access-token lifetime: 15 minutes (ADR-012).
 const DEFAULT_JWT_EXPIRY_SECS: i64 = 900;
 
+/// Default refresh-token lifetime: 14 days (ADR-012).
+const DEFAULT_REFRESH_TTL_DAYS: i64 = 14;
+
 /// Default HTTP port for auth_service.
 pub const DEFAULT_PORT: u16 = 8101;
 
@@ -17,6 +20,10 @@ pub struct Config {
     pub jwt_private_key_file: String,
     /// Access-token lifetime in seconds.
     pub jwt_expiry_secs: i64,
+    /// Refresh-token lifetime in days.
+    pub refresh_token_ttl_days: i64,
+    /// Whether refresh cookies carry `Secure` (production TLS).
+    pub cookie_secure: bool,
     /// HTTP listen port.
     pub port: u16,
 }
@@ -38,6 +45,11 @@ impl Config {
             .ok()
             .and_then(|v| v.parse().ok())
             .unwrap_or(DEFAULT_JWT_EXPIRY_SECS);
+        let refresh_token_ttl_days = std::env::var("REFRESH_TOKEN_TTL_DAYS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(DEFAULT_REFRESH_TTL_DAYS);
+        let cookie_secure = std::env::var("COOKIE_SECURE").is_ok_and(|v| v == "true" || v == "1");
         let port = std::env::var("PORT")
             .ok()
             .and_then(|p| p.parse().ok())
@@ -46,6 +58,8 @@ impl Config {
             database_url,
             jwt_private_key_file,
             jwt_expiry_secs,
+            refresh_token_ttl_days,
+            cookie_secure,
             port,
         })
     }
@@ -59,5 +73,6 @@ mod tests {
     fn dev_constants_are_sane() {
         assert_eq!(DEFAULT_PORT, 8101);
         assert_eq!(DEFAULT_JWT_EXPIRY_SECS, 900);
+        assert_eq!(DEFAULT_REFRESH_TTL_DAYS, 14);
     }
 }

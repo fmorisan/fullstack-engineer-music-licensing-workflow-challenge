@@ -3,12 +3,14 @@
 //! `docs/architecture/11-adr-asymmetric-jwts-kong-edge.md`).
 
 pub mod config;
+pub mod cookies;
 pub mod db;
 pub mod error;
 pub mod handlers;
 pub mod keys;
 pub mod models;
 pub mod password;
+pub mod refresh;
 pub mod state;
 
 use axum::Json;
@@ -25,8 +27,9 @@ pub const SERVICE_NAME: &str = "auth_service";
 
 /// Build the application router with the given shared state.
 ///
-/// `/auth/register`, `/auth/login`, and `/.well-known/jwks.json` are public;
-/// `/auth/me` is protected by the platform `require_auth` middleware.
+/// `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, and
+/// `/.well-known/jwks.json` are public; `/auth/me` is protected by the
+/// platform `require_auth` middleware.
 pub fn build_router(state: AppState) -> Router {
     let protected = Router::new()
         .route("/auth/me", get(handlers::auth::me))
@@ -38,6 +41,8 @@ pub fn build_router(state: AppState) -> Router {
     Router::new()
         .route("/auth/register", post(handlers::auth::register))
         .route("/auth/login", post(handlers::auth::login))
+        .route("/auth/refresh", post(handlers::refresh::refresh))
+        .route("/auth/logout", post(handlers::refresh::logout))
         .route("/.well-known/jwks.json", get(handlers::auth::jwks))
         .route("/healthz", get(healthz))
         .merge(protected)
@@ -58,7 +63,14 @@ pub async fn run(config: config::Config) -> anyhow::Result<()> {
     let pool = db::connect(&config.database_url).await?;
     db::migrate(&pool).await?;
     let signing = keys::SigningKeys::from_private_key_file(&config.jwt_private_key_file)?;
-    let state = AppState::new(pool, signing, config.jwt_expiry_secs);
+    let refresh_ttl_secs = config.refresh_token_ttl_days * 86_400;
+    let state = AppState::new(
+        pool,
+        signing,
+        config.jwt_expiry_secs,
+        refresh_ttl_secs,
+        config.cookie_secure,
+    );
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", config.port)).await?;
     tracing::info!(service = SERVICE_NAME, port = config.port, "listening");
     axum::serve(listener, build_router(state)).await?;

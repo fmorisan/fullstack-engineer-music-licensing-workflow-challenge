@@ -18,6 +18,7 @@ use std::sync::OnceLock;
 use tower::ServiceExt;
 
 const TEST_JWT_EXPIRY_SECS: i64 = 900;
+const TEST_REFRESH_TTL_SECS: i64 = 14 * 86_400;
 
 fn signing_keys() -> &'static SigningKeys {
     static KEYS: OnceLock<SigningKeys> = OnceLock::new();
@@ -31,7 +32,13 @@ async fn setup() -> AppState {
     let url = test_support::provision_database("auth").await;
     let pool = db::connect(&url).await.expect("connect");
     db::migrate(&pool).await.expect("migrate");
-    AppState::new(pool, signing_keys().clone(), TEST_JWT_EXPIRY_SECS)
+    AppState::new(
+        pool,
+        signing_keys().clone(),
+        TEST_JWT_EXPIRY_SECS,
+        TEST_REFRESH_TTL_SECS,
+        false,
+    )
 }
 
 fn pool(state: &AppState) -> &PgPool {
@@ -296,4 +303,202 @@ async fn users_persist_across_requests() {
 
     let (_, me, _) = get(&state, "/auth/me", Some(token)).await;
     assert_eq!(me["id"], register["user"]["id"]);
+}
+
+// ─── Refresh sessions ────────────────────────────────────────────────────────
+
+fn set_cookie_value(headers: &axum::http::HeaderMap) -> Option<String> {
+    headers
+        .get(axum::http::header::SET_COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|cookie| {
+            cookie
+                .strip_prefix("refresh_token=")
+                .and_then(|rest| rest.split(';').next())
+                .filter(|v| !v.is_empty())
+                .map(str::to_string)
+        })
+}
+
+async fn post_with_cookie(
+    state: &AppState,
+    path: &str,
+    cookie: Option<&str>,
+) -> (StatusCode, Value, axum::http::HeaderMap) {
+    let mut builder = Request::builder()
+        .method("POST")
+        .uri(path)
+        .header("content-type", "application/json");
+    if let Some(cookie) = cookie {
+        builder = builder.header("cookie", cookie.to_string());
+    }
+    send(
+        state,
+        builder
+            .body(Body::from(serde_json::to_string(&json!({})).unwrap()))
+            .unwrap(),
+    )
+    .await
+}
+
+async fn login_for_cookie(state: &AppState) -> (String, Value) {
+    let register = register_body("STUDIO", Some("ACME Bros Pictures"));
+    let email = register["email"].as_str().unwrap().to_string();
+    let (status, _, _) = post_json(state, "/auth/register", register).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (status, body, headers) = post_json(
+        state,
+        "/auth/login",
+        json!({ "email": email, "password": "super-secret-1" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    (set_cookie_value(&headers).expect("login sets cookie"), body)
+}
+
+#[tokio::test]
+async fn login_sets_hardened_refresh_cookie() {
+    let state = setup().await;
+    let register = register_body("STUDIO", Some("Cookie Factory"));
+    let (_, _, headers) = post_json(&state, "/auth/register", register).await;
+    let set_cookie = headers
+        .get(axum::http::header::SET_COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .expect("set-cookie present")
+        .to_string();
+    assert!(set_cookie.contains("Path=/auth"), "got: {set_cookie}");
+    assert!(set_cookie.contains("HttpOnly"));
+    assert!(set_cookie.contains("SameSite=Lax"));
+}
+
+#[tokio::test]
+async fn refresh_rotates_and_mints_new_access_token() {
+    let state = setup().await;
+    let (cookie, _) = login_for_cookie(&state).await;
+
+    let (status, body, headers) = post_with_cookie(
+        &state,
+        "/auth/refresh",
+        Some(&format!("refresh_token={cookie}")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert!(body["access_token"].as_str().is_some());
+    let new_cookie = set_cookie_value(&headers).expect("refresh rotates the cookie");
+    assert_ne!(cookie, new_cookie, "rotation must change the token");
+}
+
+#[tokio::test]
+async fn rotated_refresh_token_is_single_use() {
+    let state = setup().await;
+    let (cookie, _) = login_for_cookie(&state).await;
+
+    let first = post_with_cookie(
+        &state,
+        "/auth/refresh",
+        Some(&format!("refresh_token={cookie}")),
+    )
+    .await;
+    assert_eq!(first.0, StatusCode::OK);
+
+    let second = post_with_cookie(
+        &state,
+        "/auth/refresh",
+        Some(&format!("refresh_token={cookie}")),
+    )
+    .await;
+    assert_eq!(second.0, StatusCode::UNAUTHORIZED, "old token must be dead");
+}
+
+#[tokio::test]
+async fn replaying_rotated_token_revokes_the_family() {
+    let state = setup().await;
+    let (cookie, _) = login_for_cookie(&state).await;
+
+    let (_, _, headers) = post_with_cookie(
+        &state,
+        "/auth/refresh",
+        Some(&format!("refresh_token={cookie}")),
+    )
+    .await;
+    let rotated = set_cookie_value(&headers).expect("fresh sibling cookie");
+
+    // Replaying the ORIGINAL (already-rotated) token is a theft signal...
+    let replay = post_with_cookie(
+        &state,
+        "/auth/refresh",
+        Some(&format!("refresh_token={cookie}")),
+    )
+    .await;
+    assert_eq!(replay.0, StatusCode::UNAUTHORIZED);
+
+    // ...which kills the legitimate sibling too.
+    let sibling = post_with_cookie(
+        &state,
+        "/auth/refresh",
+        Some(&format!("refresh_token={rotated}")),
+    )
+    .await;
+    assert_eq!(
+        sibling.0,
+        StatusCode::UNAUTHORIZED,
+        "family must be revoked after replay"
+    );
+}
+
+#[tokio::test]
+async fn expired_refresh_token_is_rejected() {
+    let state = setup().await;
+    let (cookie, body) = login_for_cookie(&state).await;
+    let user_id: uuid::Uuid = body["user"]["id"].as_str().unwrap().parse().unwrap();
+
+    sqlx::query(
+        "UPDATE refresh_tokens SET expires_at = now() - interval '1 hour' WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .execute(pool(&state))
+    .await
+    .unwrap();
+
+    let (status, _, _) = post_with_cookie(
+        &state,
+        "/auth/refresh",
+        Some(&format!("refresh_token={cookie}")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn logout_revokes_family_and_clears_cookie() {
+    let state = setup().await;
+    let (cookie, _) = login_for_cookie(&state).await;
+
+    let (status, _, headers) = post_with_cookie(
+        &state,
+        "/auth/logout",
+        Some(&format!("refresh_token={cookie}")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let cleared = headers
+        .get(axum::http::header::SET_COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .expect("clear cookie header");
+    assert!(cleared.contains("Max-Age=0"));
+
+    let after = post_with_cookie(
+        &state,
+        "/auth/refresh",
+        Some(&format!("refresh_token={cookie}")),
+    )
+    .await;
+    assert_eq!(after.0, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn refresh_without_cookie_is_unauthorized() {
+    let state = setup().await;
+    let (status, _, _) = post_with_cookie(&state, "/auth/refresh", None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
 }

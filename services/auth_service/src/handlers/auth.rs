@@ -4,12 +4,15 @@ use axum::Extension;
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use chrono::{DateTime, Utc};
+use axum::response::IntoResponse;
+use chrono::Utc;
 use licensing_core::Role;
 use platform::AuthenticatedUser;
 use serde::Deserialize;
 
+use crate::cookies;
 use crate::error::{ApiError, ApiResult};
+use crate::handlers::refresh as refresh_handler;
 use crate::models::{UserDto, UserRow};
 use crate::password;
 use crate::state::AppState;
@@ -67,7 +70,8 @@ fn map_unique_violation(err: sqlx::Error, message: &str) -> ApiError {
 /// `POST /auth/register`
 ///
 /// Creates the organization on first use (idempotent on name+kind) and the
-/// user in one transaction, returning `201` with user + access token.
+/// user plus a refresh session in one transaction, returning `201` with
+/// user + access token and the refresh cookie.
 ///
 /// # Errors
 ///
@@ -75,7 +79,7 @@ fn map_unique_violation(err: sqlx::Error, message: &str) -> ApiError {
 pub async fn register(
     State(state): State<AppState>,
     Json(req): Json<RegisterRequest>,
-) -> ApiResult<(StatusCode, Json<AuthResponse>)> {
+) -> ApiResult<axum::response::Response> {
     let email = req.email.trim().to_ascii_lowercase();
     let display_name = req.display_name.trim().to_string();
     let org_name = req
@@ -157,16 +161,28 @@ pub async fn register(
     .await
     .map_err(|e| map_unique_violation(e, "email already registered"))?;
 
+    let refresh = refresh_handler::issue(
+        &mut *tx,
+        user.id,
+        state.refresh_ttl_secs(),
+        state.cookie_secure(),
+    )
+    .await
+    .map_err(ApiError::from)?;
+
     tx.commit().await.map_err(ApiError::from)?;
 
-    let token = mint(&state, &user, Utc::now())?;
-    Ok((
+    let access_token = mint_access_token(&state, &user)?;
+    let mut response = (
         StatusCode::CREATED,
         Json(AuthResponse {
             user: user.to_dto(),
-            access_token: token,
+            access_token,
         }),
-    ))
+    )
+        .into_response();
+    cookies::attach(&mut response, &refresh.set_cookie);
+    Ok(response)
 }
 
 /// `POST /auth/login`
@@ -177,7 +193,7 @@ pub async fn register(
 pub async fn login(
     State(state): State<AppState>,
     Json(req): Json<LoginRequest>,
-) -> ApiResult<Json<AuthResponse>> {
+) -> ApiResult<axum::response::Response> {
     let email = req.email.trim().to_ascii_lowercase();
 
     let user = sqlx::query_as!(
@@ -192,11 +208,22 @@ pub async fn login(
 
     match user {
         Some(user) if password::verify(&req.password, &user.password_hash) => {
-            let token = mint(&state, &user, Utc::now())?;
-            Ok(Json(AuthResponse {
+            let refresh = refresh_handler::issue(
+                state.pool(),
+                user.id,
+                state.refresh_ttl_secs(),
+                state.cookie_secure(),
+            )
+            .await
+            .map_err(ApiError::from)?;
+            let access_token = mint_access_token(&state, &user)?;
+            let mut response = Json(AuthResponse {
                 user: user.to_dto(),
-                access_token: token,
-            }))
+                access_token,
+            })
+            .into_response();
+            cookies::attach(&mut response, &refresh.set_cookie);
+            Ok(response)
         }
         // Burn a comparable amount of time for unknown emails so login
         // latency does not reveal account existence.
@@ -237,7 +264,9 @@ pub async fn jwks(State(state): State<AppState>) -> Json<serde_json::Value> {
     Json(state.signing().jwks.clone())
 }
 
-fn mint(state: &AppState, user: &UserRow, now: DateTime<Utc>) -> ApiResult<String> {
+/// Mint an access token for the given user.
+pub(crate) fn mint_access_token(state: &AppState, user: &UserRow) -> ApiResult<String> {
+    let now = Utc::now();
     let claims = platform::jwt::Claims {
         sub: user.id.to_string(),
         role: user.domain_role(),

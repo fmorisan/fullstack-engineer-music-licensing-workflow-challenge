@@ -9,6 +9,7 @@
 //! the podman machine socket via `DOCKER_HOST` (see the `test-integration`
 //! justfile target).
 
+pub mod kafka;
 pub mod keys;
 pub mod minio;
 pub mod postgres;

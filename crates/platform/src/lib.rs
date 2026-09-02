@@ -11,11 +11,15 @@
 
 pub mod auth;
 pub mod jwt;
+pub mod kafka;
 pub mod media;
+pub mod outbox;
 
 pub use auth::{AuthError, AuthenticatedUser, JwtAuth, require_auth};
 pub use jwt::{Claims, ISSUER, JwtError, decode, encode, key_id};
+pub use kafka::{EventProducer, ProduceError};
 pub use media::{MediaPresigner, PresignedUpload};
+pub use outbox::{OutboxRelay, enqueue};
 
 /// Crate version, exposed for diagnostics.
 pub const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");

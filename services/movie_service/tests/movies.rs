@@ -122,7 +122,8 @@ async fn studios_create_list_and_fetch_their_movies() {
 
     let (detail, body) = req(&state, "GET", &format!("/movies/{movie_id}"), &token, None).await;
     assert_eq!(detail, StatusCode::OK);
-    assert_eq!(body["title"], "Neon Nights");
+    assert_eq!(body["movie"]["title"], "Neon Nights");
+    assert_eq!(body["scenes"].as_array().unwrap().len(), 0);
 }
 
 #[tokio::test]

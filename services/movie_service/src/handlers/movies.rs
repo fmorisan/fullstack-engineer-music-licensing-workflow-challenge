@@ -9,7 +9,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
-use crate::models::{MovieDto, MovieRow};
+use crate::models::{MovieDto, MovieRow, SceneDto, SceneRow};
 use crate::state::AppState;
 
 /// Body of `POST /movies` and `PUT /movies/:id`.
@@ -118,7 +118,7 @@ pub async fn create(
     Ok((StatusCode::CREATED, Json(row.into())))
 }
 
-/// `GET /movies/:id` — movie detail.
+/// `GET /movies/:id` — movie detail including its scenes.
 ///
 /// # Errors
 ///
@@ -127,11 +127,32 @@ pub async fn detail(
     State(state): State<AppState>,
     Extension(user): Extension<AuthenticatedUser>,
     Path(movie_id): Path<Uuid>,
-) -> ApiResult<Json<MovieDto>> {
+) -> ApiResult<Json<MovieDetail>> {
     user.ensure_role(licensing_core::Role::Studio)
         .map_err(|_| ApiError::Forbidden)?;
     let movie = owned_movie(&state, &user, movie_id).await?;
-    Ok(Json(movie.into()))
+    let scenes = sqlx::query_as!(
+        SceneRow,
+        "SELECT movie_id, scene_number, screen_time_seconds, start_time_seconds,
+                end_time_seconds, description, capture_key
+         FROM scenes WHERE movie_id = $1 ORDER BY start_time_seconds",
+        movie_id,
+    )
+    .fetch_all(state.pool())
+    .await?;
+    Ok(Json(MovieDetail {
+        movie: movie.into(),
+        scenes: scenes.into_iter().map(Into::into).collect(),
+    }))
+}
+
+/// Movie with its scenes.
+#[derive(Debug, serde::Serialize)]
+pub struct MovieDetail {
+    /// The movie.
+    pub movie: MovieDto,
+    /// Scenes ordered by start time.
+    pub scenes: Vec<SceneDto>,
 }
 
 /// `PUT /movies/:id` — update title/description (and record an uploaded

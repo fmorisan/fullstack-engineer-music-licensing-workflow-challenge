@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE scenes\n         SET screen_time_seconds = $3, start_time_seconds = $4, end_time_seconds = $5,\n             description = $6, capture_key = COALESCE($7, capture_key)\n         WHERE movie_id = $1 AND scene_number = $2\n         RETURNING movie_id, scene_number, screen_time_seconds, start_time_seconds,\n                   end_time_seconds, description, capture_key",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "movie_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "scene_number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "screen_time_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "start_time_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "end_time_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "capture_key",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "4fad6d3af513d4cc568ded14e5b0d409714b99b4931e09bc80781eeff56d9567"
+}

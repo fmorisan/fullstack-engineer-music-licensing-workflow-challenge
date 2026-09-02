@@ -12,7 +12,7 @@ pub mod state;
 
 use axum::Json;
 use axum::Router;
-use axum::routing::get;
+use axum::routing::{get, put};
 use platform::JwtAuth;
 use platform::require_auth;
 use serde_json::json;
@@ -32,6 +32,11 @@ pub fn build_router(state: AppState, auth: JwtAuth) -> Router {
         .route(
             "/movies/{id}",
             get(handlers::movies::detail).put(handlers::movies::update),
+        )
+        .route("/movies/{id}/scenes", put(handlers::scenes::create))
+        .route(
+            "/movies/{id}/scenes/{scene_number}",
+            put(handlers::scenes::update),
         )
         .route("/healthz", get(healthz))
         .layer(axum::middleware::from_fn_with_state(auth, require_auth))

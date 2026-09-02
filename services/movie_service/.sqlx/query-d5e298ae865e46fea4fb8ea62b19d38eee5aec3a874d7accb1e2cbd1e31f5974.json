@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO scenes\n                (movie_id, scene_number, screen_time_seconds, start_time_seconds,\n                 end_time_seconds, description, capture_key)\n             VALUES ($1, $2, $3, $4, $5, $6, $7)\n             RETURNING movie_id, scene_number, screen_time_seconds, start_time_seconds,\n                       end_time_seconds, description, capture_key",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "movie_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "scene_number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "screen_time_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "start_time_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "end_time_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "capture_key",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "d5e298ae865e46fea4fb8ea62b19d38eee5aec3a874d7accb1e2cbd1e31f5974"
+}

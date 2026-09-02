@@ -38,6 +38,11 @@ pub fn build_router(state: AppState, auth: JwtAuth) -> Router {
             "/movies/{id}/scenes/{scene_number}",
             put(handlers::scenes::update),
         )
+        .route("/movies/{id}/poster", put(handlers::media::poster))
+        .route(
+            "/movies/{id}/scenes/{scene_number}/capture",
+            put(handlers::media::capture),
+        )
         .route("/healthz", get(healthz))
         .layer(axum::middleware::from_fn_with_state(auth, require_auth))
         .with_state(state)

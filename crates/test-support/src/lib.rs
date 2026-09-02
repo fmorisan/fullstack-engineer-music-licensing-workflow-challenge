@@ -10,6 +10,7 @@
 //! justfile target).
 
 pub mod keys;
+pub mod minio;
 pub mod postgres;
 pub mod tokens;
 

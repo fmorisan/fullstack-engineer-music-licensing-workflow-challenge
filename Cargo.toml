@@ -9,6 +9,7 @@ members = [
     "services/song_service",
     "services/search_service",
     "services/license_service",
+    "services/notification_service",
 ]
 
 [workspace.package]

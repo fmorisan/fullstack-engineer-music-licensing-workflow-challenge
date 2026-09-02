@@ -1,18 +1,14 @@
 //! # test-support
 //!
-//! Shared test helpers: testcontainers fixtures (Postgres, Redis, Kafka,
-//! `ElasticSearch`, `MinIO`) and common assertions used by per-service
-//! integration tests (see `docs/architecture/10-adr-testing-strategy.md`).
+//! Shared test helpers: testcontainers fixtures (Postgres first; Redis,
+//! Kafka, ElasticSearch, and MinIO helpers land with the phases that use
+//! them) and common assertions used by per-service integration tests (see
+//! `docs/architecture/10-adr-testing-strategy.md`).
 //!
-//! Populated alongside the phases that introduce the dependencies.
+//! Requires a Docker-compatible socket for testcontainers; locally that is
+//! the podman machine socket via `DOCKER_HOST` (see the `test-integration`
+//! justfile target).
 
-/// Crate version, exposed for diagnostics.
-pub const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub mod postgres;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn workspace_wires_up() {
-        assert_eq!(super::CRATE_VERSION, "0.1.0");
-    }
-}
+pub use postgres::provision_database;

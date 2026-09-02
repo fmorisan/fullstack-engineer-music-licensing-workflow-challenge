@@ -17,9 +17,27 @@ default:
 build:
     cargo build --workspace
 
-# Run all unit tests
+# Run all tests, including testcontainer-based integration tests.
+# Resolves the podman machine socket automatically when docker is absent.
 test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if ! command -v docker >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
+        sock=$(podman machine inspect 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["ConnectionInfo"]["PodmanSocket"]["Path"])')
+        # The inspect-reported -api.sock can be reaped by macOS temp cleanup;
+        # fall back to the stable rootless socket in the same directory.
+        if [ -n "$sock" ] && [ ! -S "$sock" ]; then
+            fallback="$(dirname "$sock")/podman-machine-default.sock"
+            [ -S "$fallback" ] && sock="$fallback" || sock=""
+        fi
+        if [ -n "$sock" ]; then
+            export DOCKER_HOST="unix://$sock"
+        fi
+    fi
     cargo test --workspace
+
+# Alias of `test` (kept for discoverability of the integration suite)
+test-integration: test
 
 # Format all code
 fmt:
@@ -46,19 +64,6 @@ dev service:
     export JWT_PUBLIC_KEY_FILE="${JWT_PUBLIC_KEY_FILE:-infrastructure/docker/keys/dev-auth-public.pem}"
     export SQLX_OFFLINE="${SQLX_OFFLINE:-true}"
     cargo run -p {{service}}
-
-# Run all tests including testcontainer-based integration tests.
-# Resolves the podman machine socket automatically when docker is absent.
-test-integration:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    if ! command -v docker >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
-        sock=$(podman machine inspect 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["ConnectionInfo"]["PodmanSocket"]["Path"])')
-        if [ -n "$sock" ]; then
-            export DOCKER_HOST="unix://$sock"
-        fi
-    fi
-    cargo test --workspace
 
 # ─── Frontend ────────────────────────────────────────────────────────────────
 

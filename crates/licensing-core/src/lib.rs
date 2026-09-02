@@ -14,8 +14,13 @@
 //! - [`ids`]: UUIDv7 generation helpers
 //! - [`time`]: scene/song time interval math
 
+pub mod license;
 pub mod role;
 
+pub use license::{
+    LicenseAction, LicenseState, ParseLicenseStateError, TransitionError, can_transition,
+    transition,
+};
 pub use role::{ParseRoleError, Role};
 
 /// Crate version, exposed for diagnostics.

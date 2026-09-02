@@ -12,6 +12,7 @@ networks:
 volumes:
   pg_data:
   minio_data:
+  kafka_data:
 
 services:
   # ── Postgres: one logical database per service ──────────────────────────────
@@ -78,4 +79,38 @@ services:
       mc mb --ignore-existing local/${S3_BUCKET_MOVIE_MEDIA:-movie-media} &&
       mc mb --ignore-existing local/${S3_BUCKET_SONG_MEDIA:-song-media}
       "
+    networks: [acme]
+
+  # ── Kafka: single-node KRaft broker ─────────────────────────────────────────
+  # INTERNAL listener for containers (kafka:29092), EXTERNAL for host-run
+  # services (localhost:9092). Listener bind hosts stay empty: the image
+  # wrapper rejects 0.0.0.0 binds when deriving advertised listeners.
+  kafka:
+    image: apache/kafka:3.9.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_HEAP_OPTS: -Xmx512m -Xms256m
+      CLUSTER_ID: 5L6g3nShT-eMCtK--X86sw
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
     networks: [acme]

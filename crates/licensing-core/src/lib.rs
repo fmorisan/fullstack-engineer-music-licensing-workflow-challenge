@@ -19,6 +19,7 @@ pub mod events;
 pub mod ids;
 pub mod license;
 pub mod role;
+pub mod time;
 pub mod topics;
 
 pub use channels::{LICENSE_UPDATES, NOTIFICATIONS};
@@ -27,10 +28,11 @@ pub use events::{
 };
 pub use ids::new_id;
 pub use license::{
-    can_transition, transition, LicenseAction, LicenseState, ParseLicenseStateError,
-    TransitionError,
+    LicenseAction, LicenseState, ParseLicenseStateError, TransitionError, can_transition,
+    transition,
 };
 pub use role::{ParseRoleError, Role};
+pub use time::TimeInterval;
 pub use topics::{LICENSE_EVENTS, SONG_EVENTS};
 
 /// Crate version, exposed for diagnostics.

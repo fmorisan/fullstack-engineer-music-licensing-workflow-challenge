@@ -180,18 +180,17 @@ mod tests {
         let sv = serde_json::to_value(&song).unwrap();
         let mut skeys: Vec<&str> = sv.as_object().unwrap().keys().map(String::as_str).collect();
         skeys.sort_unstable();
-        assert_eq!(
-            skeys,
-            [
-                "song_id",
-                "label_id",
-                "title",
-                "author",
-                "length_seconds",
-                "box_art_key",
-                "audio_preview_key",
-            ]
-        );
+        let mut expected = [
+            "song_id",
+            "label_id",
+            "title",
+            "author",
+            "length_seconds",
+            "box_art_key",
+            "audio_preview_key",
+        ];
+        expected.sort_unstable();
+        assert_eq!(skeys, expected);
     }
 
     #[test]

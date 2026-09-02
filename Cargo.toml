@@ -4,6 +4,7 @@ members = [
     "crates/licensing-core",
     "crates/platform",
     "crates/test-support",
+    "services/auth_service",
 ]
 
 [workspace.package]

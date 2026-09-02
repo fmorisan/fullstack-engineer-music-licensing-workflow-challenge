@@ -11,9 +11,11 @@
 
 pub mod auth;
 pub mod jwt;
+pub mod media;
 
 pub use auth::{AuthError, AuthenticatedUser, JwtAuth, require_auth};
 pub use jwt::{Claims, ISSUER, JwtError, decode, encode, key_id};
+pub use media::{MediaPresigner, PresignedUpload};
 
 /// Crate version, exposed for diagnostics.
 pub const CRATE_VERSION: &str = env!("CARGO_PKG_VERSION");

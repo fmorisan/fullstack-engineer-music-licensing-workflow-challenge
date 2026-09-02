@@ -6,7 +6,6 @@ pub mod config;
 pub mod db;
 pub mod error;
 pub mod handlers;
-pub mod media;
 pub mod models;
 pub mod state;
 
@@ -64,7 +63,7 @@ async fn healthz() -> Json<serde_json::Value> {
 pub async fn run(config: config::Config) -> anyhow::Result<()> {
     let pool = db::connect(&config.database_url).await?;
     db::migrate(&pool).await?;
-    let media = media::MediaPresigner::new(
+    let media = platform::media::MediaPresigner::new(
         &config.s3_endpoint,
         &config.s3_access_key,
         &config.s3_secret_key,

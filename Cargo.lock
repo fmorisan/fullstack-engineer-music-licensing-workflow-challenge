@@ -2059,8 +2059,6 @@ name = "movie_service"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "aws-config",
- "aws-sdk-s3",
  "axum",
  "chrono",
  "http-body-util",
@@ -2322,6 +2320,8 @@ name = "platform"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "aws-config",
+ "aws-sdk-s3",
  "axum",
  "chrono",
  "http-body-util",

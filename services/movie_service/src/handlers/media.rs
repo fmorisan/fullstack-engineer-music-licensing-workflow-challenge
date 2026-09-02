@@ -8,8 +8,8 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::error::{ApiError, ApiResult};
-use crate::media::PresignedUpload;
 use crate::state::AppState;
+use platform::PresignedUpload;
 
 /// Body of the presign endpoints.
 #[derive(Debug, Deserialize)]

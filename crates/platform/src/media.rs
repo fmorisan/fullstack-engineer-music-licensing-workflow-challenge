@@ -1,4 +1,7 @@
 //! Pre-signed media uploads against MinIO/S3 (ADR-009).
+//!
+//! Shared by movie_service (posters, scene captures) and song_service
+//! (box art, audio previews).
 
 use std::time::Duration;
 

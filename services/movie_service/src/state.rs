@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use sqlx::PgPool;
 
-use crate::media::MediaPresigner;
+use platform::MediaPresigner;
 
 /// Cheaply cloneable state handed to every handler.
 #[derive(Clone)]

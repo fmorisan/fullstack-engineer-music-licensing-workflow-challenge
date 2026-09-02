@@ -1,6 +1,12 @@
 # Music Licensing Workflow — root orchestration
 # All backend tooling is cargo-based; JS tooling is confined to frontend/.
 
+set dotenv-load
+
+# Compose runner: defaults to podman locally; CI exports COMPOSE="docker compose"
+COMPOSE := env_var_or_default("COMPOSE", "podman compose")
+COMPOSE_FILE := "infrastructure/docker/compose.yml"
+
 default:
     @just --list
 
@@ -51,13 +57,30 @@ frontend-build:
 frontend-lint:
     cd frontend && npm run lint
 
-# ─── Infrastructure (Phase 1) ─────────────────────────────────────────────────
-# Targets below are wired up when infrastructure/docker/compose.yml lands.
+# ─── Infrastructure ───────────────────────────────────────────────────────────
 
-# Start the local stack
+# Start the local stack, wait for healthchecks, bootstrap MinIO buckets
 up:
-    @echo "not yet available: lands in Phase 1 (infrastructure/docker/compose.yml)"
+    {{COMPOSE}} -f {{COMPOSE_FILE}} up -d --wait
+    {{COMPOSE}} -f {{COMPOSE_FILE}} run --rm minio-init
 
-# Stop the local stack
+# Stop the local stack (volumes preserved)
 down:
-    @echo "not yet available: lands in Phase 1 (infrastructure/docker/compose.yml)"
+    {{COMPOSE}} -f {{COMPOSE_FILE}} down
+
+# Stop the local stack and delete volumes (fresh databases/media)
+nuke:
+    {{COMPOSE}} -f {{COMPOSE_FILE}} down -v
+
+# Stack status
+ps:
+    {{COMPOSE}} -f {{COMPOSE_FILE}} ps
+
+# Restart one stack service; re-reads bind-mounted configs (inotify does not
+# cross the podman VM boundary, so config edits need a force-recreate)
+restart service:
+    {{COMPOSE}} -f {{COMPOSE_FILE}} up -d --force-recreate {{service}}
+
+# Tail stack logs (optionally one service: `just logs kafka`)
+logs service='':
+    {{COMPOSE}} -f {{COMPOSE_FILE}} logs -f {{service}}

@@ -11,6 +11,8 @@
 
 pub mod keys;
 pub mod postgres;
+pub mod tokens;
 
 pub use keys::RsaKeyPair;
 pub use postgres::provision_database;
+pub use tokens::{access_token, label_token, studio_token};

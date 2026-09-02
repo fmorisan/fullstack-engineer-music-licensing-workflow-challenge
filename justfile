@@ -39,6 +39,21 @@ test:
 # Alias of `test` (kept for discoverability of the integration suite)
 test-integration: test
 
+# Regenerate per-service .sqlx offline query metadata against the local stack.
+# Requires each service's database to be migrated (services run migrations at
+# boot, or: sqlx migrate run --source services/<svc>_service/migrations).
+prepare:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    export SQLX_OFFLINE=false
+    for dir in services/*; do
+      if [ -d "$dir/migrations" ]; then
+        svc=$(basename "$dir" | sed 's/_service//')
+        echo "==> preparing $dir against ${svc}_db"
+        (cd "$dir" && DATABASE_URL="postgres://acme:acme_dev_only@localhost:5433/${svc}_db" cargo sqlx prepare)
+      fi
+    done
+
 # Format all code
 fmt:
     cargo fmt --all

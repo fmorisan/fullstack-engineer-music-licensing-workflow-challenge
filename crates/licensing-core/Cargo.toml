@@ -1,0 +1,19 @@
+[package]
+name = "licensing-core"
+description = "Pure domain logic for the music licensing system: license state machine, roles, event schemas, topic constants, ID helpers."
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+proptest = { workspace = true }

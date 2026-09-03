@@ -280,3 +280,40 @@ async fn audio_preview_duration_is_capped_at_thirty_seconds() {
         );
     }
 }
+
+#[tokio::test]
+async fn song_detail_reads_are_authoritative_and_cross_role() {
+    let state = setup().await;
+    let token = label_token();
+    let (_, body) = req(
+        &state,
+        "POST",
+        "/songs",
+        &token,
+        Some(song_body("Detailable")),
+    )
+    .await;
+    let song_id = body["id"].as_str().unwrap().to_string();
+
+    // Another label can read the catalog entry (licensing needs this).
+    let stranger = label_token();
+    let (status, body) = req(&state, "GET", &format!("/songs/{song_id}"), &stranger, None).await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["title"], "Detailable");
+    assert!(body["label_id"].as_str().is_some());
+
+    // Studios too.
+    let (status, _) = req(
+        &state,
+        "GET",
+        &format!("/songs/{song_id}"),
+        &studio_token(),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let ghost = uuid::Uuid::now_v7();
+    let (status, _) = req(&state, "GET", &format!("/songs/{ghost}"), &token, None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}

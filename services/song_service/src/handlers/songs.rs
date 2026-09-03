@@ -137,6 +137,32 @@ pub async fn create(
     Ok((StatusCode::CREATED, Json(row.to_dto())))
 }
 
+/// `GET /songs/:id` — authoritative song detail from the catalog.
+///
+/// Any authenticated role may read: licensing (license_service validation)
+/// and the studio-facing UI need the source of truth, while search-service
+/// reads remain eventually consistent for discovery.
+///
+/// # Errors
+///
+/// `404` when the song does not exist.
+pub async fn detail(
+    State(state): State<AppState>,
+    Path(song_id): Path<Uuid>,
+) -> ApiResult<Json<SongDto>> {
+    let row = sqlx::query_as!(
+        SongRow,
+        "SELECT id, label_id, title, author, length_seconds, box_art_key,
+                audio_preview_key, created_at, updated_at
+         FROM songs WHERE id = $1",
+        song_id,
+    )
+    .fetch_optional(state.pool())
+    .await?
+    .ok_or(ApiError::NotFound)?;
+    Ok(Json(row.to_dto()))
+}
+
 /// `PUT /songs/:id` — update catalog metadata (and record uploaded keys).
 ///
 /// Enqueues an `UPDATED` event on the outbox in the same transaction.

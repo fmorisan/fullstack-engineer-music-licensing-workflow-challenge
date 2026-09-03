@@ -78,20 +78,11 @@ services:
   - name: search_service
     url: http://host.containers.internal:8104
     routes:
-      # Search reads take precedence over song management for these paths;
-      # Kong prefers the longer match.
+      # Discovery stays eventually consistent; song DETAIL reads are served
+      # authoritatively by song_service (longest-path match wins below).
       - name: songs-search
         paths: ["/songs/search"]
         strip_path: false
-        plugins:
-          - name: jwt
-            config:
-              key_claim_name: iss
-              claims_to_verify: [exp]
-      - name: songs-detail
-        paths: ["/songs/"]
-        strip_path: false
-        methods: [GET]
         plugins:
           - name: jwt
             config:

@@ -30,7 +30,10 @@ pub fn build_router(state: AppState, auth: JwtAuth) -> Router {
             "/songs",
             get(handlers::songs::list).post(handlers::songs::create),
         )
-        .route("/songs/{id}", put(handlers::songs::update))
+        .route(
+            "/songs/{id}",
+            get(handlers::songs::detail).put(handlers::songs::update),
+        )
         .route("/songs/{id}/box_art", put(handlers::media::box_art))
         .route(
             "/songs/{id}/audio_preview",

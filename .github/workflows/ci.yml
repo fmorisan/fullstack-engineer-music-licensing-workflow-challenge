@@ -19,6 +19,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install native dependencies
+        # rdkafka links dynamically against the system librdkafka (the
+        # bundled cmake build is broken against current toolchains); the
+        # integration tests also need Docker, which ubuntu-latest provides.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends librdkafka-dev pkg-config
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: "1.96.0"
@@ -34,6 +42,9 @@ jobs:
 
       - name: Test
         run: cargo test --workspace
+
+      - name: Build release binaries
+        run: cargo build --workspace --release
 
   frontend:
     name: Frontend (lint, typecheck, build)

@@ -112,6 +112,11 @@ services:
   - name: notification_service
     url: http://host.containers.internal:8106
     routes:
+      # SSE stream: no edge jwt plugin (Kong OSS cannot read query-param
+      # tokens); the service middleware validates ?access_token= itself.
+      - name: notifications-stream
+        paths: ["/notifications/stream"]
+        strip_path: false
       - name: notifications
         paths: ["/notifications"]
         strip_path: false

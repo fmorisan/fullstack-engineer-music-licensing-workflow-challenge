@@ -140,6 +140,20 @@ pub fn consumer(bootstrap: &str) -> anyhow::Result<EventConsumer> {
 ///
 /// Returns only on unrecoverable consumer failures.
 pub async fn run(consumer: EventConsumer, pool: PgPool) -> anyhow::Result<()> {
+    run_with_live(consumer, pool, None).await
+}
+
+/// Like [`run`], publishing each newly-inserted notification to the live
+/// channel for connected SSE clients (ADR-005/006).
+///
+/// # Errors
+///
+/// Returns only on unrecoverable consumer failures.
+pub async fn run_with_live(
+    consumer: EventConsumer,
+    pool: PgPool,
+    publisher: Option<platform::pubsub::Publisher>,
+) -> anyhow::Result<()> {
     loop {
         let message = consumer
             .recv_timeout(std::time::Duration::from_secs(1))
@@ -148,11 +162,24 @@ pub async fn run(consumer: EventConsumer, pool: PgPool) -> anyhow::Result<()> {
             continue;
         };
         match serde_json::from_slice::<LicenseEvent>(&message.payload) {
-            Ok(event) => {
-                if let Err(err) = apply_event(&pool, &event).await {
-                    tracing::warn!(%err, "notification apply failed; will not retry this event");
+            Ok(event) => match apply_event(&pool, &event).await {
+                Ok(Some(row)) => {
+                    if let Some(publisher) = &publisher
+                        && let Err(err) = publisher
+                            .publish(
+                                licensing_core::NOTIFICATIONS,
+                                &crate::handlers::live_payload(&row),
+                            )
+                            .await
+                    {
+                        tracing::warn!(%err, "live notification publish failed");
+                    }
                 }
-            }
+                Ok(None) => {}
+                Err(err) => {
+                    tracing::warn!(%err, "notification apply failed; event not retried");
+                }
+            },
             Err(err) => {
                 tracing::warn!(%err, "malformed license event skipped");
             }

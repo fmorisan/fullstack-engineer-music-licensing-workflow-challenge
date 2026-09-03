@@ -10,6 +10,7 @@ members = [
     "services/song_service",
     "services/search_service",
     "services/license_service",
+    "services/license_service",
     "services/notification_service",
 ]
 
@@ -49,11 +50,16 @@ aws-sdk-s3 = { version = "1", default-features = false, features = ["behavior-ve
 
 # Testcontainers
 testcontainers = "0.24"
-testcontainers-modules = { version = "0.12", features = ["postgres", "kafka"] }
+testcontainers-modules = { version = "0.12", features = ["postgres", "kafka", "redis"] }
 
 # Kafka (dynamically linked against system librdkafka: brew install
 # librdkafka / apt install librdkafka-dev; no cmake build)
 rdkafka = { version = "0.36", features = ["tokio", "dynamic-linking"] }
+
+# Search stack (the official Rust client ships only alpha releases; pinned
+# to the 8.x line, compatible with our 8.15.3 server)
+elasticsearch = "8.19.0-alpha.1"
+redis = { version = "0.27", features = ["tokio", "tokio-comp", "connection-manager"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

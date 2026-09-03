@@ -8,6 +8,9 @@
 use std::time::Duration;
 
 use rdkafka::config::ClientConfig;
+use rdkafka::consumer::Consumer;
+use rdkafka::consumer::{BaseConsumer, StreamConsumer};
+use rdkafka::message::Message;
 use rdkafka::producer::FutureProducer;
 use rdkafka::producer::FutureRecord;
 
@@ -64,4 +67,99 @@ impl EventProducer {
             Err(_) => Err(ProduceError::Timeout(self.ack_timeout)),
         }
     }
+}
+
+/// A consumed event message.
+#[derive(Debug, Clone)]
+pub struct ConsumedEvent {
+    /// Partition key, when present.
+    pub key: Option<Vec<u8>>,
+    /// Message payload.
+    pub payload: Vec<u8>,
+}
+
+/// Async consumer used by the search indexer and notification service.
+///
+/// Auto-commits offsets (at-least-once); consumers must be idempotent.
+pub struct EventConsumer {
+    inner: StreamConsumer,
+}
+
+impl EventConsumer {
+    /// Create a consumer in `group` starting from the earliest offsets on
+    /// first appearance, subscribed to `topics`.
+    ///
+    /// # Errors
+    ///
+    /// Fails when the Kafka client cannot be constructed or the subscription
+    /// is rejected.
+    pub fn new(
+        bootstrap_servers: &str,
+        group: &str,
+        topics: &[&str],
+    ) -> Result<Self, rdkafka::error::KafkaError> {
+        let inner: StreamConsumer = ClientConfig::new()
+            .set("bootstrap.servers", bootstrap_servers)
+            .set("group.id", group)
+            .set("enable.auto.commit", "true")
+            .set("auto.offset.reset", "earliest")
+            .set("session.timeout.ms", "6000")
+            .create()?;
+        inner.subscribe(topics)?;
+        Ok(Self { inner })
+    }
+
+    /// Await the next message.
+    ///
+    /// # Errors
+    ///
+    /// Propagates consumer errors.
+    pub async fn recv(&self) -> Result<ConsumedEvent, rdkafka::error::KafkaError> {
+        let message = self.inner.recv().await?;
+        Ok(ConsumedEvent {
+            key: message.key().map(<[u8]>::to_vec),
+            payload: message.payload().map(<[u8]>::to_vec).unwrap_or_default(),
+        })
+    }
+
+    /// Await the next message with a bound; `Ok(None)` on timeout.
+    ///
+    /// # Errors
+    ///
+    /// Propagates consumer errors.
+    pub async fn recv_timeout(
+        &self,
+        timeout: Duration,
+    ) -> Result<Option<ConsumedEvent>, rdkafka::error::KafkaError> {
+        match tokio::time::timeout(timeout, self.inner.recv()).await {
+            Ok(Ok(message)) => Ok(Some(ConsumedEvent {
+                key: message.key().map(<[u8]>::to_vec),
+                payload: message.payload().map(<[u8]>::to_vec).unwrap_or_default(),
+            })),
+            Ok(Err(err)) => Err(err),
+            Err(_) => Ok(None),
+        }
+    }
+}
+
+/// Sync consumer for test helpers (poll-based).
+///
+/// # Errors
+///
+/// Fails when the Kafka client cannot be constructed or the subscription
+/// is rejected.
+pub fn base_consumer(
+    bootstrap_servers: &str,
+    group: &str,
+    topics: &[&str],
+) -> Result<BaseConsumer, rdkafka::error::KafkaError> {
+    let consumer: BaseConsumer = ClientConfig::new()
+        .set("bootstrap.servers", bootstrap_servers)
+        .set("group.id", group)
+        .set("enable.auto.commit", "false")
+        .set("auto.offset.reset", "earliest")
+        .set("session.timeout.ms", "6000")
+        .create()?;
+    consumer.subscribe(topics)?;
+    Ok(consumer)
 }

@@ -17,7 +17,7 @@ pub mod outbox;
 
 pub use auth::{AuthError, AuthenticatedUser, JwtAuth, require_auth};
 pub use jwt::{Claims, ISSUER, JwtError, decode, encode, key_id};
-pub use kafka::{EventProducer, ProduceError};
+pub use kafka::{ConsumedEvent, EventConsumer, EventProducer, ProduceError};
 pub use media::{MediaPresigner, PresignedUpload};
 pub use outbox::{OutboxRelay, enqueue};
 

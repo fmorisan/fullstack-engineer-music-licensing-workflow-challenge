@@ -130,11 +130,12 @@ pub async fn create(
     .fetch_one(&mut *tx)
     .await?;
 
+    let log_id = licensing_core::new_id();
     sqlx::query!(
         "INSERT INTO license_log
             (id, license_id, sequence, from_state, to_state, action, actor_user_id, license_fee_cents)
          VALUES ($1, $2, 1, NULL, $3, 'CREATE', $4, $5)",
-        licensing_core::new_id(),
+        log_id,
         license_id,
         licensing_core::LicenseState::INITIAL.as_str(),
         user.user_id,
@@ -143,7 +144,16 @@ pub async fn create(
     .execute(&mut *tx)
     .await?;
 
+    let snapshot = crate::events::snapshot(&row, None, user.user_id, log_id);
+    crate::events::enqueue(
+        &mut *tx,
+        licensing_core::LicenseEventKind::Created,
+        &snapshot,
+    )
+    .await?;
+
     tx.commit().await?;
+    crate::events::publish_live(&state, &snapshot).await;
     Ok((StatusCode::CREATED, Json(row.to_dto())))
 }
 
@@ -317,12 +327,13 @@ pub async fn transition(
     .await?
     .ok_or_else(|| ApiError::Conflict("license state changed concurrently".into()))?;
 
+    let log_id = licensing_core::new_id();
     sqlx::query!(
         "INSERT INTO license_log
             (id, license_id, sequence, from_state, to_state, action, actor_user_id, license_fee_cents)
          SELECT $1, $2, COALESCE(MAX(sequence), 0) + 1, $3, $4, $5, $6, $7
            FROM license_log WHERE license_id = $2",
-        licensing_core::new_id(),
+        log_id,
         license_id,
         from.as_str(),
         next.as_str(),
@@ -333,7 +344,16 @@ pub async fn transition(
     .execute(&mut *tx)
     .await?;
 
+    let snapshot = crate::events::snapshot(&row, Some(from), user.user_id, log_id);
+    crate::events::enqueue(
+        &mut *tx,
+        licensing_core::LicenseEventKind::StateChanged,
+        &snapshot,
+    )
+    .await?;
+
     tx.commit().await?;
+    crate::events::publish_live(&state, &snapshot).await;
     Ok(Json(row.to_dto()))
 }
 

@@ -4,6 +4,7 @@
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod events;
 pub mod handlers;
 pub mod models;
 pub mod state;
@@ -34,6 +35,7 @@ pub fn build_router(state: AppState, auth: JwtAuth) -> Router {
             "/licenses/{id}",
             get(handlers::licenses::detail).put(handlers::licenses::transition),
         )
+        .route("/licenses/stream", get(handlers::stream::stream))
         .layer(axum::middleware::from_fn_with_state(auth, require_auth));
 
     Router::new()
@@ -55,8 +57,22 @@ pub async fn run(config: config::Config) -> anyhow::Result<()> {
     let pool = db::connect(&config.database_url).await?;
     db::migrate(&pool).await?;
 
+    // Outbox relay: publishes committed license.events rows to Kafka (ADR-004).
+    let relay = platform::OutboxRelay::new(&config.kafka_bootstrap)?;
+    let relay_pool = pool.clone();
+    tokio::spawn(async move {
+        if let Err(err) = relay.run(relay_pool).await {
+            tracing::error!(%err, "outbox relay stopped");
+        }
+    });
+
+    // Live updates: Redis publish on transitions, fanout to SSE streams.
+    let publisher = platform::pubsub::Publisher::connect(&config.redis_url).await?;
+    let fanout =
+        platform::pubsub::Fanout::spawn(&config.redis_url, licensing_core::LICENSE_UPDATES).await?;
+
     let upstream = upstream::Upstream::new(&config.movie_service_url, &config.song_service_url)?;
-    let state = AppState::new(pool, upstream);
+    let state = AppState::new(pool, upstream).with_live(publisher, fanout);
 
     let auth =
         JwtAuth::from_public_key_file(std::env::var("JWT_PUBLIC_KEY_FILE").unwrap_or_else(|_| {

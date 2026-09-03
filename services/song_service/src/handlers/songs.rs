@@ -97,6 +97,9 @@ pub async fn list(
 
 /// `POST /songs` — add a song to the caller's catalog.
 ///
+/// Enqueues a `CREATED` event on the outbox in the same transaction
+/// (ADR-004).
+///
 /// # Errors
 ///
 /// `403` for non-label users, `422` on validation failures.
@@ -110,6 +113,7 @@ pub async fn create(
     validate(&req)?;
     let label_id = label_org(&user)?;
 
+    let mut tx = state.pool().begin().await?;
     let row = sqlx::query_as!(
         SongRow,
         "INSERT INTO songs (id, label_id, title, author, length_seconds, box_art_key, audio_preview_key)
@@ -124,13 +128,18 @@ pub async fn create(
         req.box_art_key,
         req.audio_preview_key,
     )
-    .fetch_one(state.pool())
+    .fetch_one(&mut *tx)
     .await?;
+
+    crate::events::enqueue_created(&mut *tx, &row).await?;
+    tx.commit().await?;
 
     Ok((StatusCode::CREATED, Json(row.to_dto())))
 }
 
 /// `PUT /songs/:id` — update catalog metadata (and record uploaded keys).
+///
+/// Enqueues an `UPDATED` event on the outbox in the same transaction.
 ///
 /// # Errors
 ///
@@ -147,6 +156,7 @@ pub async fn update(
     let label_id = label_org(&user)?;
     owned_song(&state, &user, song_id).await?;
 
+    let mut tx = state.pool().begin().await?;
     let row = sqlx::query_as!(
         SongRow,
         "UPDATE songs
@@ -165,8 +175,10 @@ pub async fn update(
         req.box_art_key,
         req.audio_preview_key,
     )
-    .fetch_one(state.pool())
+    .fetch_one(&mut *tx)
     .await?;
+    crate::events::enqueue_updated(&mut *tx, &row).await?;
+    tx.commit().await?;
 
     Ok(Json(row.to_dto()))
 }

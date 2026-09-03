@@ -5,6 +5,7 @@
 pub mod config;
 pub mod db;
 pub mod error;
+pub mod events;
 pub mod handlers;
 pub mod models;
 pub mod state;
@@ -56,6 +57,16 @@ async fn healthz() -> Json<serde_json::Value> {
 pub async fn run(config: config::Config) -> anyhow::Result<()> {
     let pool = db::connect(&config.database_url).await?;
     db::migrate(&pool).await?;
+
+    // Outbox relay: publishes committed song.events rows to Kafka (ADR-004).
+    let relay = platform::OutboxRelay::new(&config.kafka_bootstrap)?;
+    let relay_pool = pool.clone();
+    tokio::spawn(async move {
+        if let Err(err) = relay.run(relay_pool).await {
+            tracing::error!(%err, "outbox relay stopped");
+        }
+    });
+
     let media = platform::MediaPresigner::new(
         &config.s3_endpoint,
         &config.s3_access_key,

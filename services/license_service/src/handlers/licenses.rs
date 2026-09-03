@@ -144,7 +144,7 @@ pub async fn create(
     .execute(&mut *tx)
     .await?;
 
-    let snapshot = crate::events::snapshot(&row, None, user.user_id, log_id);
+    let snapshot = crate::events::snapshot(&row, None, &user, log_id);
     crate::events::enqueue(
         &mut *tx,
         licensing_core::LicenseEventKind::Created,
@@ -344,7 +344,7 @@ pub async fn transition(
     .execute(&mut *tx)
     .await?;
 
-    let snapshot = crate::events::snapshot(&row, Some(from), user.user_id, log_id);
+    let snapshot = crate::events::snapshot(&row, Some(from), &user, log_id);
     crate::events::enqueue(
         &mut *tx,
         licensing_core::LicenseEventKind::StateChanged,

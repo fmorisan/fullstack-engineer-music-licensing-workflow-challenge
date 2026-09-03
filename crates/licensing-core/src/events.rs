@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::license::LicenseState;
+use crate::role::Role;
 
 /// Kind of change to a song record.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -80,6 +81,9 @@ pub struct LicenseSnapshot {
     pub song_id: Uuid,
     /// User that performed the change.
     pub actor_user_id: Uuid,
+    /// Role of the acting user; lets consumers (notification_service)
+    /// identify the counterparty without re-deriving it from the transition.
+    pub actor_role: Role,
     /// Studio organization owning the movie.
     pub studio_id: Uuid,
     /// Label organization owning the song.
@@ -135,6 +139,7 @@ mod tests {
             scene_number: 7,
             song_id: Uuid::now_v7(),
             actor_user_id: Uuid::now_v7(),
+            actor_role: Role::Studio,
             studio_id: Uuid::now_v7(),
             label_id: Uuid::now_v7(),
             from_state: Some(LicenseState::Offer),

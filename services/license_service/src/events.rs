@@ -22,7 +22,7 @@ use crate::models::LicenseRow;
 pub fn snapshot(
     row: &LicenseRow,
     from_state: Option<LicenseState>,
-    actor_user_id: Uuid,
+    actor: &platform::AuthenticatedUser,
     license_log_id: Uuid,
 ) -> LicenseSnapshot {
     LicenseSnapshot {
@@ -30,7 +30,8 @@ pub fn snapshot(
         movie_id: row.movie_id,
         scene_number: row.scene_number,
         song_id: row.song_id,
-        actor_user_id,
+        actor_user_id: actor.user_id,
+        actor_role: actor.role,
         studio_id: row.studio_id,
         label_id: row.label_id,
         from_state,

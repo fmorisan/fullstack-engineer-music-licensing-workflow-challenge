@@ -2,9 +2,11 @@
 //! ElasticSearch catalog, and serves fuzzy + autocomplete song search with a
 //! Redis hot-query cache (ADR-004, ADR-006 design).
 
+pub mod cache;
 pub mod config;
 pub mod error;
 pub mod es;
+pub mod handlers;
 pub mod indexer;
 pub mod state;
 
@@ -21,9 +23,12 @@ use crate::state::AppState;
 pub const SERVICE_NAME: &str = "search_service";
 
 /// Build the application router; all routes except `/healthz` require
-/// authentication.
+/// authentication. Any authenticated role may search.
 pub fn build_router(state: AppState, auth: JwtAuth) -> Router {
-    let protected = Router::new().layer(axum::middleware::from_fn_with_state(auth, require_auth));
+    let protected = Router::new()
+        .route("/songs/search", get(handlers::search))
+        .route("/songs/{id}", get(handlers::detail))
+        .layer(axum::middleware::from_fn_with_state(auth, require_auth));
 
     Router::new()
         .route("/healthz", get(healthz))

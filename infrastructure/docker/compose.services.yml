@@ -10,8 +10,9 @@
 
 services:
   auth_service:
+    image: acme-auth_service:dev
     build:
-      context: ..
+      context: ../..
       dockerfile: infrastructure/docker/services.Dockerfile
       args:
         SERVICE: auth_service
@@ -32,8 +33,9 @@ services:
     networks: [acme]
 
   movie_service:
+    image: acme-movie_service:dev
     build:
-      context: ..
+      context: ../..
       dockerfile: infrastructure/docker/services.Dockerfile
       args:
         SERVICE: movie_service
@@ -42,6 +44,7 @@ services:
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin
+      JWT_PUBLIC_KEY_FILE: /keys/dev-auth-public.pem
       PORT: "8102"
     volumes:
       - ./keys:/keys:ro
@@ -58,8 +61,9 @@ services:
     networks: [acme]
 
   song_service:
+    image: acme-song_service:dev
     build:
-      context: ..
+      context: ../..
       dockerfile: infrastructure/docker/services.Dockerfile
       args:
         SERVICE: song_service
@@ -69,6 +73,7 @@ services:
       S3_ENDPOINT: http://minio:9000
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin
+      JWT_PUBLIC_KEY_FILE: /keys/dev-auth-public.pem
       PORT: "8103"
     volumes:
       - ./keys:/keys:ro
@@ -87,8 +92,9 @@ services:
     networks: [acme]
 
   search_service:
+    image: acme-search_service:dev
     build:
-      context: ..
+      context: ../..
       dockerfile: infrastructure/docker/services.Dockerfile
       args:
         SERVICE: search_service
@@ -96,6 +102,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       ELASTICSEARCH_URL: http://elasticsearch:9200
       REDIS_URL: redis://redis:6379
+      JWT_PUBLIC_KEY_FILE: /keys/dev-auth-public.pem
       PORT: "8104"
     volumes:
       - ./keys:/keys:ro
@@ -114,8 +121,9 @@ services:
     networks: [acme]
 
   license_service:
+    image: acme-license_service:dev
     build:
-      context: ..
+      context: ../..
       dockerfile: infrastructure/docker/services.Dockerfile
       args:
         SERVICE: license_service
@@ -125,6 +133,7 @@ services:
       REDIS_URL: redis://redis:6379
       MOVIE_SERVICE_URL: http://movie_service:8102
       SONG_SERVICE_URL: http://song_service:8103
+      JWT_PUBLIC_KEY_FILE: /keys/dev-auth-public.pem
       PORT: "8105"
     volumes:
       - ./keys:/keys:ro
@@ -147,8 +156,9 @@ services:
     networks: [acme]
 
   notification_service:
+    image: acme-notification_service:dev
     build:
-      context: ..
+      context: ../..
       dockerfile: infrastructure/docker/services.Dockerfile
       args:
         SERVICE: notification_service
@@ -157,6 +167,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       REDIS_URL: redis://redis:6379
       MAILPIT_API_URL: http://mailpit:8025/api/v1
+      JWT_PUBLIC_KEY_FILE: /keys/dev-auth-public.pem
       PORT: "8106"
     volumes:
       - ./keys:/keys:ro
@@ -177,8 +188,9 @@ services:
     networks: [acme]
 
   frontend:
+    image: acme-frontend:dev
     build:
-      context: ..
+      context: ../..
       dockerfile: infrastructure/docker/frontend.Dockerfile
     ports:
       - "5173:80" # matches the Kong CORS origin; conflicts with `just frontend-dev`

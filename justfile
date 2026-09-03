@@ -5,6 +5,10 @@ set dotenv-load
 
 # Compose runner: defaults to podman locally; CI exports COMPOSE="docker compose"
 COMPOSE := env_var_or_default("COMPOSE", "podman compose")
+# Image builder: sequential builds share the cargo-chef cache layer and
+# avoid OOM'ing smaller VMs (parallel compose builds duplicate the cook).
+BUILDER := env_var_or_default("BUILDER", "podman")
+SERVICES := "auth_service movie_service song_service search_service license_service notification_service"
 COMPOSE_FILE := "infrastructure/docker/compose.yml"
 HOST_OVERRIDES := "-f infrastructure/docker/compose.yml -f infrastructure/docker/compose.host-services.yml"
 FULL_STACK := "-f infrastructure/docker/compose.yml -f infrastructure/docker/compose.services.yml"
@@ -134,10 +138,22 @@ _active_compose_files:
     fi
     echo "{{FULL_STACK}}"
 
-# Start the FULL stack (infra + services + frontend), build images if
+# Build all service + frontend images sequentially (chef layers shared).
+images:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    for svc in {{SERVICES}}; do
+        echo "==> image acme-$svc:dev"
+        {{BUILDER}} build -f infrastructure/docker/services.Dockerfile \
+            --build-arg SERVICE="$svc" -t "acme-$svc:dev" .
+    done
+    echo "==> image acme-frontend:dev"
+    {{BUILDER}} build -f infrastructure/docker/frontend.Dockerfile -t acme-frontend:dev .
+
+# Start the FULL stack (infra + services + frontend), building images if
 # needed, wait for healthchecks, bootstrap MinIO buckets. Reviewer mode.
-up:
-    {{COMPOSE}} {{FULL_STACK}} up -d --build --wait
+up: images
+    {{COMPOSE}} {{FULL_STACK}} up -d --no-build --wait
     {{COMPOSE}} {{FULL_STACK}} run --rm minio-init
 
 # Stop the stack (volumes preserved)

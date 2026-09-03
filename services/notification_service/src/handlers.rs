@@ -150,24 +150,44 @@ pub async fn mark_all_read(
 
 /// `GET /notifications/stream` — live inbox updates over Server-Sent
 /// Events; EventSource clients authenticate via `?access_token=` (the
-/// platform middleware accepts it). Payloads are notification DTOs.
+/// platform middleware accepts it). Payloads are notification DTOs,
+/// **filtered to the caller's org** — the shared channel carries every
+/// notification, and cross-tenant rows must never reach a connected client.
 ///
 /// # Errors
 ///
 /// `500` when live wiring is absent (misconfigured deployment).
 pub async fn stream(
     State(state): State<AppState>,
+    Extension(user): Extension<AuthenticatedUser>,
 ) -> ApiResult<Sse<impl tokio_stream::Stream<Item = Result<SseEvent, Infallible>>>> {
     let fanout = state.fanout().ok_or(ApiError::Internal(anyhow::anyhow!(
         "live updates not configured"
     )))?;
     let rx = fanout.subscribe();
+    let allowed_org = user.org_id;
+    let allowed_user = Some(user.user_id);
 
     let events =
-        tokio_stream::wrappers::BroadcastStream::new(rx).filter_map(|message| match message {
-            Ok(payload) => Some(Ok(SseEvent::default()
-                .event("notification")
-                .data(payload.as_ref()))),
+        tokio_stream::wrappers::BroadcastStream::new(rx).filter_map(move |message| match message {
+            Ok(payload) => {
+                let visible = serde_json::from_str::<serde_json::Value>(payload.as_ref())
+                    .ok()
+                    .is_some_and(|dto| {
+                        let org_match = allowed_org.is_some_and(|org| {
+                            dto["recipient_org_id"].as_str() == Some(org.to_string().as_str())
+                        });
+                        let user_match = allowed_user.is_some_and(|id| {
+                            dto["recipient_user_id"].as_str() == Some(id.to_string().as_str())
+                        });
+                        org_match || user_match
+                    });
+                visible.then(|| {
+                    Ok(SseEvent::default()
+                        .event("notification")
+                        .data(payload.as_ref()))
+                })
+            }
             // Client fell behind; it reconciles by refetching the inbox.
             Err(_lagged) => None,
         });

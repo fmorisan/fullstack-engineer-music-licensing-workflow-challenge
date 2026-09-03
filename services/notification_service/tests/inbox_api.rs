@@ -91,16 +91,26 @@ async fn req(
     send(state, request).await
 }
 
+/// Build a legal event whose NOTIFICATION lands in `recipient_org`'s inbox
+/// (the counterparty of `actor_role`). `from: None` implies CREATED.
 fn event(
     actor_role: Role,
-    to_org_inbox_of: Uuid,
+    recipient_org: Uuid,
     from: Option<LicenseState>,
     to: LicenseState,
 ) -> LicenseEvent {
-    let _ = to_org_inbox_of;
+    let (studio_id, label_id) = if actor_role == Role::Studio {
+        (Uuid::now_v7(), recipient_org)
+    } else {
+        (recipient_org, Uuid::now_v7())
+    };
     LicenseEvent {
         event_id: Uuid::now_v7(),
-        kind: LicenseEventKind::StateChanged,
+        kind: if from.is_none() {
+            LicenseEventKind::Created
+        } else {
+            LicenseEventKind::StateChanged
+        },
         occurred_at: Utc::now(),
         license: LicenseSnapshot {
             license_id: Uuid::now_v7(),
@@ -109,8 +119,8 @@ fn event(
             song_id: Uuid::now_v7(),
             actor_user_id: Uuid::now_v7(),
             actor_role,
-            studio_id: Uuid::now_v7(),
-            label_id: Uuid::now_v7(),
+            studio_id,
+            label_id,
             from_state: from,
             state: to,
             license_fee_cents: 1,
@@ -129,18 +139,11 @@ async fn seed(state: &AppState, org: Uuid) -> Uuid {
         Some(LicenseState::Offer),
         LicenseState::CounterOffer,
     );
-    let row = consumer::apply_event(state.pool(), &ev)
+    consumer::apply_event(state.pool(), &ev)
         .await
         .unwrap()
-        .expect("row");
-    // Point it at the intended org (apply_event derives from the snapshot).
-    sqlx::query("UPDATE notifications SET recipient_org_id = $1 WHERE id = $2")
-        .bind(org)
-        .bind(row.id)
-        .execute(state.pool())
-        .await
-        .unwrap();
-    row.id
+        .expect("row")
+        .id
 }
 
 #[tokio::test]
@@ -271,8 +274,7 @@ async fn live_inserts_stream_over_sse() {
     );
 
     // Publish like the consumer loop would.
-    let mut ev = event(Role::Studio, org, None, LicenseState::Offer);
-    ev.kind = LicenseEventKind::Created;
+    let ev = event(Role::Studio, org, None, LicenseState::Offer);
     let row = consumer::apply_event(state.pool(), &ev)
         .await
         .unwrap()
@@ -300,4 +302,92 @@ async fn live_inserts_stream_over_sse() {
     assert!(text.contains("OFFER_RECEIVED"), "got: {text}");
 
     let _ = json!(());
+}
+
+#[tokio::test]
+async fn sse_filters_cross_tenant_notifications() {
+    let redis = test_support::redis::RedisFixture::start().await;
+    let state = setup(Some(&redis.url)).await;
+    let label_org = Uuid::now_v7();
+    let studio_org = Uuid::now_v7();
+    let label_stream_token = token(Role::Label, Some(label_org));
+
+    // The label listens; a studio-bound notification must NOT arrive.
+    let stream_request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/notifications/stream?access_token={label_stream_token}"
+        ))
+        .body(Body::empty())
+        .unwrap();
+    let response = build_router(state.clone(), fixture().auth.clone())
+        .oneshot(stream_request)
+        .await
+        .expect("stream opens");
+
+    let ev = event(
+        Role::Label,
+        studio_org,
+        Some(LicenseState::Offer),
+        LicenseState::CounterOffer,
+    );
+    let row = consumer::apply_event(state.pool(), &ev)
+        .await
+        .unwrap()
+        .expect("row");
+    let publisher = Publisher::connect(&redis.url).await.unwrap();
+    publisher
+        .publish(
+            licensing_core::NOTIFICATIONS,
+            &notification_service::handlers::live_payload(&row),
+        )
+        .await
+        .unwrap();
+
+    // No frame within a beat window...
+    assert!(
+        tokio::time::timeout(
+            std::time::Duration::from_millis(800),
+            response.into_body().frame()
+        )
+        .await
+        .is_err(),
+        "cross-tenant notification leaked to the stream"
+    );
+
+    // ...while an own-org notification flows immediately after.
+    let stream_request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/notifications/stream?access_token={label_stream_token}"
+        ))
+        .body(Body::empty())
+        .unwrap();
+    let response = build_router(state.clone(), fixture().auth.clone())
+        .oneshot(stream_request)
+        .await
+        .expect("stream reopens");
+    let own = event(Role::Studio, label_org, None, LicenseState::Offer);
+    let own_row = consumer::apply_event(state.pool(), &own)
+        .await
+        .unwrap()
+        .expect("row");
+    publisher
+        .publish(
+            licensing_core::NOTIFICATIONS,
+            &notification_service::handlers::live_payload(&own_row),
+        )
+        .await
+        .unwrap();
+    let frame = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        response.into_body().frame(),
+    )
+    .await
+    .expect("own-org frame within 5s")
+    .expect("alive")
+    .expect("decoded");
+    let bytes = frame.into_data().unwrap_or_default();
+    assert!(String::from_utf8_lossy(&bytes).contains("OFFER_RECEIVED"));
+    let _ = row.id;
 }

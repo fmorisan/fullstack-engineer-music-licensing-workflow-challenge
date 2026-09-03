@@ -278,3 +278,81 @@ async fn license_events_flow_through_the_outbox_to_kafka() {
         "each event anchors its own log row (idempotency)"
     );
 }
+
+#[tokio::test]
+async fn sse_filters_cross_tenant_license_updates() {
+    let redis = test_support::redis::RedisFixture::start().await;
+    let live = live_setup(&redis.url).await;
+    let license_id = create_license(&live).await;
+
+    // A stranger studio listens: it must NOT see this license's updates.
+    let stranger_org = Uuid::now_v7();
+    let stranger_token = test_support::access_token(
+        &fixture().pair,
+        licensing_core::Role::Studio,
+        Some(stranger_org),
+    );
+    let stream_request = Request::builder()
+        .method("GET")
+        .uri(format!("/licenses/stream?access_token={stranger_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let response = build_router(live.state.clone(), fixture().auth.clone())
+        .oneshot(stream_request)
+        .await
+        .expect("stream opens");
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let (status, _) = req(
+        &live.state,
+        "PUT",
+        &format!("/licenses/{license_id}"),
+        &label_token(live.label_org),
+        Some(json!({ "action": "COUNTER_OFFER", "license_fee_cents": 999 })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    assert!(
+        tokio::time::timeout(
+            std::time::Duration::from_millis(800),
+            response.into_body().frame()
+        )
+        .await
+        .is_err(),
+        "cross-tenant license update leaked to the stream"
+    );
+
+    // The party studio DOES see it.
+    let party_request = Request::builder()
+        .method("GET")
+        .uri(format!(
+            "/licenses/stream?access_token={}",
+            studio_token(live.studio_org)
+        ))
+        .body(Body::empty())
+        .unwrap();
+    let party_response = build_router(live.state.clone(), fixture().auth.clone())
+        .oneshot(party_request)
+        .await
+        .expect("party stream opens");
+    let (status, _) = req(
+        &live.state,
+        "PUT",
+        &format!("/licenses/{license_id}"),
+        &studio_token(live.studio_org),
+        Some(json!({ "action": "OFFER", "license_fee_cents": 1000 })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let frame = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        party_response.into_body().frame(),
+    )
+    .await
+    .expect("party frame within 5s")
+    .expect("alive")
+    .expect("decoded");
+    let bytes = frame.into_data().unwrap_or_default();
+    assert!(String::from_utf8_lossy(&bytes).contains("OFFER"));
+}

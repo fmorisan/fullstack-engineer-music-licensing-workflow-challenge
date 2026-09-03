@@ -203,26 +203,6 @@ async fn search_results_are_cached_with_ttl_and_popularity() {
 }
 
 #[tokio::test]
-async fn song_detail_is_served_and_cached() {
-    let state = setup().await;
-    let record = song("Detail-Magnet");
-    index_eventually(&state, &record).await;
-
-    let (status, body, cache_header) = get(&state, &format!("/songs/{}", record.song_id)).await;
-    assert_eq!(status, StatusCode::OK, "body: {body}");
-    assert_eq!(cache_header, "miss");
-    assert_eq!(body["title"], "Detail-Magnet");
-
-    let (status, _, cache_header) = get(&state, &format!("/songs/{}", record.song_id)).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(cache_header, "hit");
-
-    let unknown = Uuid::now_v7();
-    let (status, _, _) = get(&state, &format!("/songs/{unknown}")).await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
-}
-
-#[tokio::test]
 async fn search_validates_parameters() {
     let state = setup().await;
 

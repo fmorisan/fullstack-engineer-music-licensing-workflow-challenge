@@ -27,7 +27,6 @@ pub const SERVICE_NAME: &str = "search_service";
 pub fn build_router(state: AppState, auth: JwtAuth) -> Router {
     let protected = Router::new()
         .route("/songs/search", get(handlers::search))
-        .route("/songs/{id}", get(handlers::detail))
         .layer(axum::middleware::from_fn_with_state(auth, require_auth));
 
     Router::new()

@@ -2,12 +2,11 @@
 
 use axum::Extension;
 use axum::Json;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Query, State};
 use axum::http::header::HeaderName;
 use axum::response::IntoResponse;
 use platform::AuthenticatedUser;
 use serde::Deserialize;
-use uuid::Uuid;
 
 use crate::cache;
 use crate::error::{ApiError, ApiResult};
@@ -87,42 +86,6 @@ pub async fn search(
     let _ = cache::bump_popularity(state.redis(), query).await;
 
     let mut response = Json(page).into_response();
-    with_cache_header(&mut response, false)?;
-    Ok(response)
-}
-
-/// `GET /songs/:id` — song detail from the catalog (eventually consistent;
-/// a just-created song may 404 briefly until indexed).
-///
-/// # Errors
-///
-/// `404` when unknown.
-pub async fn detail(
-    State(state): State<AppState>,
-    Extension(_user): Extension<AuthenticatedUser>,
-    Path(song_id): Path<Uuid>,
-) -> ApiResult<axum::response::Response> {
-    let key = cache::detail_key(song_id);
-
-    if let Some(hit) = cache::get_cached(state.redis(), &key).await.unwrap_or(None) {
-        let mut response = Json(hit).into_response();
-        with_cache_header(&mut response, true)?;
-        return Ok(response);
-    }
-
-    let hit = es::get_song(state.es(), song_id)
-        .await?
-        .ok_or(ApiError::NotFound)?;
-
-    let _ = cache::set_cached(
-        state.redis(),
-        &key,
-        &serde_json::to_value(&hit).unwrap_or_default(),
-        state.detail_cache_ttl_secs(),
-    )
-    .await;
-
-    let mut response = Json(hit).into_response();
     with_cache_header(&mut response, false)?;
     Ok(response)
 }

@@ -8,16 +8,13 @@ import { LoginPage } from "./pages/LoginPage";
 import { MoviesPage } from "./pages/MoviesPage";
 import { MovieDetailPage } from "./pages/MovieDetailPage";
 import { SearchPage } from "./pages/SearchPage";
+import { CatalogPage } from "./pages/CatalogPage";
+import { LabelLicensesPage } from "./pages/LabelLicensesPage";
 import "./index.css";
 
 const Home = () => {
   const { user } = useAuth();
-  return (
-    <div className="page-placeholder">
-      <h2>Welcome, {user?.display_name ?? "stranger"}.</h2>
-      <p>Views land with the next commits.</p>
-    </div>
-  );
+  return <Navigate to={user?.role === "LABEL" ? "/catalog" : "/movies"} replace />;
 };
 
 const queryClient = new QueryClient({
@@ -50,6 +47,8 @@ const router = createBrowserRouter([
       { path: "movies", element: <MoviesPage /> },
       { path: "movies/:movieId", element: <MovieDetailPage /> },
       { path: "search", element: <SearchPage /> },
+      { path: "catalog", element: <CatalogPage /> },
+      { path: "licenses", element: <LabelLicensesPage /> },
     ],
   },
 ]);

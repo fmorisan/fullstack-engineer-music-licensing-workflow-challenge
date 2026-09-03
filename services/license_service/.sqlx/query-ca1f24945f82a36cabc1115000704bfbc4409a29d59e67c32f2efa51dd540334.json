@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO license_log\n            (id, license_id, sequence, from_state, to_state, action, actor_user_id, license_fee_cents)\n         SELECT $1, $2, COALESCE(MAX(sequence), 0) + 1, $3, $4, $5, $6, $7\n           FROM license_log WHERE license_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ca1f24945f82a36cabc1115000704bfbc4409a29d59e67c32f2efa51dd540334"
+}

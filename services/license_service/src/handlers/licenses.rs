@@ -233,6 +233,120 @@ pub async fn list(
     Ok(Json(rows.iter().map(LicenseRow::to_dto).collect()))
 }
 
+/// `PUT /licenses/:id` — apply a negotiation action.
+///
+/// The outcome is decided by the single authoritative state machine in
+/// `licensing-core::transition`; this handler owns authorization (the actor
+/// must be a party to the license), fee rules (`OFFER`/`COUNTER_OFFER`
+/// carry a new fee; `ACCEPT`/`REJECT` keep the current one), and the
+/// atomic state + log write.
+///
+/// # Errors
+///
+/// `404` for missing/foreign licenses; `403` when the action is not for
+/// the caller's role; `409` when the action is illegal from the current
+/// state; `422` when an action requiring a fee lacks one.
+pub async fn transition(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthenticatedUser>,
+    Path(license_id): Path<Uuid>,
+    Json(req): Json<TransitionRequest>,
+) -> ApiResult<Json<LicenseDto>> {
+    let license = load_owned(&state, &user, license_id).await?;
+
+    // Party check beyond org membership: studios act on studio-owned rows,
+    // labels on their songs.
+    let org = user.org_id.ok_or(ApiError::Forbidden)?;
+    let role_matches_party = match user.role {
+        licensing_core::Role::Studio => license.studio_id == org,
+        licensing_core::Role::Label => license.label_id == org,
+        licensing_core::Role::Admin => false,
+    };
+    if !role_matches_party {
+        return Err(ApiError::NotFound);
+    }
+
+    // Fee rules: proposals carry a new fee; terminal-bound actions keep it.
+    let new_fee = match req.action {
+        licensing_core::LicenseAction::Offer | licensing_core::LicenseAction::CounterOffer => {
+            let fee = req.license_fee_cents.ok_or_else(|| {
+                ApiError::Validation(format!("{} requires license_fee_cents", req.action))
+            })?;
+            if fee < 0 {
+                return Err(ApiError::Validation(
+                    "license_fee_cents must not be negative".into(),
+                ));
+            }
+            fee
+        }
+        licensing_core::LicenseAction::Accept | licensing_core::LicenseAction::Reject => {
+            req.license_fee_cents
+                .filter(|fee| *fee != license.license_fee_cents)
+                .map_or(license.license_fee_cents, |_| {
+                    // Reject explicit fee changes on non-proposal actions.
+                    license.license_fee_cents
+                })
+        }
+    };
+
+    // THE state machine (licensing-core is the only implementation).
+    let from = license.domain_state();
+    let next =
+        licensing_core::transition(from, req.action, user.role).map_err(|err| match err {
+            licensing_core::TransitionError::ActionForbiddenForRole { .. } => ApiError::Forbidden,
+            licensing_core::TransitionError::IllegalFromState { .. } => {
+                ApiError::Conflict(format!("{err}"))
+            }
+        })?;
+
+    let mut tx = state.pool().begin().await?;
+    let row = sqlx::query_as!(
+        LicenseRow,
+        "UPDATE licenses
+         SET state = $3, license_fee_cents = $4, updated_at = now()
+         WHERE id = $1 AND state = $2
+         RETURNING id, movie_id, scene_number, song_id, studio_id, label_id,
+                   studio_user_id, state, license_fee_cents, start_time_seconds,
+                   end_time_seconds, created_at, updated_at",
+        license_id,
+        from.as_str(),
+        next.as_str(),
+        new_fee,
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| ApiError::Conflict("license state changed concurrently".into()))?;
+
+    sqlx::query!(
+        "INSERT INTO license_log
+            (id, license_id, sequence, from_state, to_state, action, actor_user_id, license_fee_cents)
+         SELECT $1, $2, COALESCE(MAX(sequence), 0) + 1, $3, $4, $5, $6, $7
+           FROM license_log WHERE license_id = $2",
+        licensing_core::new_id(),
+        license_id,
+        from.as_str(),
+        next.as_str(),
+        req.action.as_str(),
+        user.user_id,
+        new_fee,
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row.to_dto()))
+}
+
+/// Body of `PUT /licenses/:id`.
+#[derive(Debug, Deserialize)]
+pub struct TransitionRequest {
+    /// Action to apply.
+    pub action: licensing_core::LicenseAction,
+    /// New fee in cents; required for `OFFER`/`COUNTER_OFFER`, ignored
+    /// otherwise.
+    pub license_fee_cents: Option<i64>,
+}
+
 /// `GET /licenses/:id` — detail with the lifecycle log; only the owning
 /// studio or label may read.
 ///
@@ -261,13 +375,15 @@ pub async fn detail(
     }))
 }
 
-/// Load a license the caller is a party to; otherwise 404.
+/// Load a license the caller is a party to; anyone else (including
+/// org-less principals like admins) sees a 404 — party membership is not
+/// leaked.
 pub(crate) async fn load_owned(
     state: &AppState,
     user: &AuthenticatedUser,
     license_id: Uuid,
 ) -> ApiResult<LicenseRow> {
-    let org = user.org_id.ok_or(ApiError::Forbidden)?;
+    let org = user.org_id.ok_or(ApiError::NotFound)?;
     sqlx::query_as!(
         LicenseRow,
         "SELECT id, movie_id, scene_number, song_id, studio_id, label_id,

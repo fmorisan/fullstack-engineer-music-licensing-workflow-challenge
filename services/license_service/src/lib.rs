@@ -30,7 +30,10 @@ pub fn build_router(state: AppState, auth: JwtAuth) -> Router {
             "/licenses",
             get(handlers::licenses::list).post(handlers::licenses::create),
         )
-        .route("/licenses/{id}", get(handlers::licenses::detail))
+        .route(
+            "/licenses/{id}",
+            get(handlers::licenses::detail).put(handlers::licenses::transition),
+        )
         .layer(axum::middleware::from_fn_with_state(auth, require_auth));
 
     Router::new()

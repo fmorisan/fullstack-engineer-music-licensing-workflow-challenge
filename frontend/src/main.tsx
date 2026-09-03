@@ -7,6 +7,7 @@ import { Layout } from "./components/Layout";
 import { LoginPage } from "./pages/LoginPage";
 import { MoviesPage } from "./pages/MoviesPage";
 import { MovieDetailPage } from "./pages/MovieDetailPage";
+import { SearchPage } from "./pages/SearchPage";
 import "./index.css";
 
 const Home = () => {
@@ -48,6 +49,7 @@ const router = createBrowserRouter([
       { index: true, element: <Home /> },
       { path: "movies", element: <MoviesPage /> },
       { path: "movies/:movieId", element: <MovieDetailPage /> },
+      { path: "search", element: <SearchPage /> },
     ],
   },
 ]);

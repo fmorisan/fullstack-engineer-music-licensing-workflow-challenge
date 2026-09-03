@@ -15,7 +15,6 @@ axum = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { workspace = true }
-rdkafka = { workspace = true }
 jsonwebtoken = { workspace = true }
 rsa = { workspace = true }
 sha2 = { workspace = true }
@@ -34,3 +33,9 @@ tokio-stream = { workspace = true }
 test-support = { workspace = true }
 tower = { workspace = true }
 http-body-util = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+rdkafka = { workspace = true, features = ["tokio", "dynamic-linking", "libz"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+rdkafka = { workspace = true, features = ["tokio", "cmake-build", "libz"] }

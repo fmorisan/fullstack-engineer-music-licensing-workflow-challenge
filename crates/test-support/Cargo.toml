@@ -18,8 +18,13 @@ testcontainers-modules = { workspace = true }
 anyhow = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
-rdkafka = { workspace = true }
 rsa = { workspace = true }
 rand_core = { workspace = true }
 chrono = { workspace = true }
 uuid = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+rdkafka = { workspace = true, features = ["tokio", "dynamic-linking", "libz"] }
+
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+rdkafka = { workspace = true, features = ["tokio", "cmake-build", "libz"] }

@@ -52,9 +52,11 @@ aws-sdk-s3 = { version = "1", default-features = false, features = ["behavior-ve
 testcontainers = "0.24"
 testcontainers-modules = { version = "0.12", features = ["postgres", "kafka", "redis"] }
 
-# Kafka (dynamically linked against system librdkafka: brew install
-# librdkafka / apt install librdkafka-dev; no cmake build)
-rdkafka = { version = "0.36", features = ["tokio", "dynamic-linking"] }
+# Kafka. Feature selection is per-target (see crates' Cargo.toml):
+# macOS links the system librdkafka (brew install librdkafka — the bundled
+# cmake C++ build is broken against current SDKs); Linux builds bundled
+# librdkafka statically via cmake, so container images carry no Kafka lib.
+rdkafka = { version = "0.36", default-features = false }
 
 # Search stack (the official Rust client ships only alpha releases; pinned
 # to the 8.x line, compatible with our 8.15.3 server)

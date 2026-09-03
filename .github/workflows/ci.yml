@@ -20,12 +20,13 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install native dependencies
-        # rdkafka links dynamically against the system librdkafka (the
-        # bundled cmake build is broken against current toolchains); the
-        # integration tests also need Docker, which ubuntu-latest provides.
+        # On Linux, rdkafka builds its bundled librdkafka statically via
+        # cmake (the macOS SDK breaks that path, so macOS links the brew
+        # library — see the root Cargo.toml note). The integration tests
+        # also need Docker, which ubuntu-latest provides.
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends librdkafka-dev pkg-config
+          sudo apt-get install -y --no-install-recommends cmake g++ libssl-dev pkg-config
 
       - uses: dtolnay/rust-toolchain@stable
         with:

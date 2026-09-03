@@ -1,0 +1,188 @@
+# Full-stack overlay: the six Rust services + frontend as containers.
+#
+#   just up          # infra + services + frontend (reviewer experience)
+#   just up-host     # infra only, kong routes to host-run `just dev` services
+#
+# Kong uses its base (container-hostname) config here; services talk over
+# the internal network (kafka:29092, postgres:5432, container-name upstreams).
+# Credentials are dev fixtures (see .env.example); production wiring is out
+# of scope for this stack.
+
+services:
+  auth_service:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/services.Dockerfile
+      args:
+        SERVICE: auth_service
+    environment:
+      DATABASE_URL: postgres://acme:acme_dev_only@postgres:5432/auth_db
+      JWT_PRIVATE_KEY_FILE: /keys/dev-auth-private.pem
+      PORT: "8101"
+    volumes:
+      - ./keys:/keys:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8101/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [acme]
+
+  movie_service:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/services.Dockerfile
+      args:
+        SERVICE: movie_service
+    environment:
+      DATABASE_URL: postgres://acme:acme_dev_only@postgres:5432/movie_db
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      PORT: "8102"
+    volumes:
+      - ./keys:/keys:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8102/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks: [acme]
+
+  song_service:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/services.Dockerfile
+      args:
+        SERVICE: song_service
+    environment:
+      DATABASE_URL: postgres://acme:acme_dev_only@postgres:5432/song_db
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      S3_ENDPOINT: http://minio:9000
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      PORT: "8103"
+    volumes:
+      - ./keys:/keys:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8103/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks: [acme]
+
+  search_service:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/services.Dockerfile
+      args:
+        SERVICE: search_service
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      REDIS_URL: redis://redis:6379
+      PORT: "8104"
+    volumes:
+      - ./keys:/keys:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8104/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+    depends_on:
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [acme]
+
+  license_service:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/services.Dockerfile
+      args:
+        SERVICE: license_service
+    environment:
+      DATABASE_URL: postgres://acme:acme_dev_only@postgres:5432/license_db
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      REDIS_URL: redis://redis:6379
+      MOVIE_SERVICE_URL: http://movie_service:8102
+      SONG_SERVICE_URL: http://song_service:8103
+      PORT: "8105"
+    volumes:
+      - ./keys:/keys:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8105/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      movie_service:
+        condition: service_healthy
+      song_service:
+        condition: service_healthy
+    networks: [acme]
+
+  notification_service:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/services.Dockerfile
+      args:
+        SERVICE: notification_service
+    environment:
+      DATABASE_URL: postgres://acme:acme_dev_only@postgres:5432/notification_db
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      REDIS_URL: redis://redis:6379
+      MAILPIT_API_URL: http://mailpit:8025/api/v1
+      PORT: "8106"
+    volumes:
+      - ./keys:/keys:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8106/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    networks: [acme]
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: infrastructure/docker/frontend.Dockerfile
+    ports:
+      - "5173:80" # matches the Kong CORS origin; conflicts with `just frontend-dev`
+    depends_on:
+      kong:
+        condition: service_healthy
+    networks: [acme]

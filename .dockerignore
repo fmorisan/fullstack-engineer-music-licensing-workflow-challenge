@@ -1,0 +1,15 @@
+# Root .dockerignore — keeps image contexts lean and deterministic.
+# NOTE: .sqlx directories MUST ship in the image context: SQLx
+# compile-time checked queries read them under SQLX_OFFLINE=true.
+.git
+target
+frontend/node_modules
+frontend/dist
+frontend/coverage
+frontend/.vite
+frontend/e2e-results
+frontend/playwright-report
+infrastructure/docker/data
+.env
+**/*.rs.bk
+.DS_Store

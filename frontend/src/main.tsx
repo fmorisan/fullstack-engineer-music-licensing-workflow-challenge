@@ -5,6 +5,8 @@ import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom"
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { Layout } from "./components/Layout";
 import { LoginPage } from "./pages/LoginPage";
+import { MoviesPage } from "./pages/MoviesPage";
+import { MovieDetailPage } from "./pages/MovieDetailPage";
 import "./index.css";
 
 const Home = () => {
@@ -44,6 +46,8 @@ const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <Home /> },
+      { path: "movies", element: <MoviesPage /> },
+      { path: "movies/:movieId", element: <MovieDetailPage /> },
     ],
   },
 ]);

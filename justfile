@@ -7,6 +7,7 @@ set dotenv-load
 COMPOSE := env_var_or_default("COMPOSE", "podman compose")
 COMPOSE_FILE := "infrastructure/docker/compose.yml"
 HOST_OVERRIDES := "-f infrastructure/docker/compose.yml -f infrastructure/docker/compose.host-services.yml"
+FULL_STACK := "-f infrastructure/docker/compose.yml -f infrastructure/docker/compose.services.yml"
 
 default:
     @just --list
@@ -111,19 +112,45 @@ frontend-lint:
     cd frontend && npm run lint
 
 # ─── Infrastructure ───────────────────────────────────────────────────────────
+#
+# Three modes:
+#   just up       full stack: infra + six services + frontend (containers)
+#   just up-host  infra only; Kong routes to host-run `just dev <service>`
+#   just dev X    run one service on the host against the up-host stack
 
-# Start the local stack, wait for healthchecks, bootstrap MinIO buckets
+# Detect which stack mode is live by inspecting Kong's declarative config
+# (host-dev mode swaps in kong.host-dev.yml). Prints the compose file set
+# for the ACTIVE mode; full stack when ambiguous/not running.
+#[private]
+_active_compose_files:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if docker="$(command -v docker)" 2>/dev/null || docker="$(command -v podman)"; then
+        mode=$("$docker" inspect acme-licensing-kong-1 2>/dev/null | python3 -c 'import json,sys; envs=json.load(sys.stdin)[0]["Config"]["Env"]; print("\n".join(e for e in envs if e.startswith("KONG_DECLARATIVE_CONFIG=")))' || true)
+        if echo "$mode" | grep -q 'host-dev'; then
+            echo "{{HOST_OVERRIDES}}"
+            exit 0
+        fi
+    fi
+    echo "{{FULL_STACK}}"
+
+# Start the FULL stack (infra + services + frontend), build images if
+# needed, wait for healthchecks, bootstrap MinIO buckets. Reviewer mode.
 up:
-    {{COMPOSE}} -f {{COMPOSE_FILE}} up -d --wait
-    {{COMPOSE}} -f {{COMPOSE_FILE}} run --rm minio-init
+    {{COMPOSE}} {{FULL_STACK}} up -d --build --wait
+    {{COMPOSE}} {{FULL_STACK}} run --rm minio-init
 
-# Stop the local stack (volumes preserved)
+# Stop the stack (volumes preserved)
 down:
-    {{COMPOSE}} -f {{COMPOSE_FILE}} down
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{COMPOSE}} -f {{COMPOSE_FILE}} down --remove-orphans
 
-# Stop the local stack and delete volumes (fresh databases/media)
+# Stop the stack and delete volumes (fresh databases/media)
 nuke:
-    {{COMPOSE}} -f {{COMPOSE_FILE}} down -v
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{COMPOSE}} -f {{COMPOSE_FILE}} down -v --remove-orphans
 
 # Start the stack in host-dev mode: Kong routes to services running on the
 # host via `just dev <service>` (host.containers.internal)
@@ -131,15 +158,22 @@ up-host:
     {{COMPOSE}} {{HOST_OVERRIDES}} up -d --wait
     {{COMPOSE}} {{HOST_OVERRIDES}} run --rm minio-init
 
-# Stack status
+# Stack status (of the active mode)
 ps:
-    {{COMPOSE}} -f {{COMPOSE_FILE}} ps
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{COMPOSE}} $(just --quiet _active_compose_files) ps
 
 # Restart one stack service; re-reads bind-mounted configs (inotify does not
-# cross the podman VM boundary, so config edits need a force-recreate)
+# cross the podman VM boundary, so config edits need a force-recreate) and
+# restarts in whichever mode is currently active.
 restart service:
-    {{COMPOSE}} -f {{COMPOSE_FILE}} up -d --force-recreate {{service}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{COMPOSE}} $(just --quiet _active_compose_files) up -d --force-recreate --no-deps {{service}}
 
 # Tail stack logs (optionally one service: `just logs kafka`)
 logs service='':
-    {{COMPOSE}} -f {{COMPOSE_FILE}} logs -f {{service}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    {{COMPOSE}} $(just --quiet _active_compose_files) logs -f {{service}}

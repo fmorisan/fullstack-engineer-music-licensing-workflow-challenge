@@ -17,22 +17,34 @@ default:
 build:
     cargo build --workspace
 
+# Resolve a HEALTHY podman machine socket, restarting the machine when the
+# API socket has been reaped by macOS temp-dir cleanup. Prints nothing when
+# docker is available or podman is unusable.
+#[private]
+_healthy_podman_socket:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    command -v docker >/dev/null 2>&1 && exit 0
+    command -v podman >/dev/null 2>&1 || exit 0
+    sock=$(podman machine inspect 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["ConnectionInfo"]["PodmanSocket"]["Path"])' || true)
+    healthy() { [ -n "$sock" ] && [ -S "$sock" ] && curl -s --unix-socket "$sock" http://localhost/_ping >/dev/null 2>&1; }
+    if ! healthy; then
+        echo "podman API socket unhealthy; restarting the machine..." >&2
+        podman machine stop >/dev/null 2>&1 || true
+        podman machine start >/dev/null 2>&1 || true
+        sock=$(podman machine inspect 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["ConnectionInfo"]["PodmanSocket"]["Path"])' || true)
+        healthy || sock=""
+    fi
+    [ -n "$sock" ] && echo "unix://$sock" || true
+
 # Run all tests, including testcontainer-based integration tests.
-# Resolves the podman machine socket automatically when docker is absent.
+# Resolves (and if needed heals) the podman machine socket automatically.
 test:
     #!/usr/bin/env bash
     set -euo pipefail
-    if ! command -v docker >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
-        sock=$(podman machine inspect 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["ConnectionInfo"]["PodmanSocket"]["Path"])')
-        # The inspect-reported -api.sock can be reaped by macOS temp cleanup;
-        # fall back to the stable rootless socket in the same directory.
-        if [ -n "$sock" ] && [ ! -S "$sock" ]; then
-            fallback="$(dirname "$sock")/podman-machine-default.sock"
-            [ -S "$fallback" ] && sock="$fallback" || sock=""
-        fi
-        if [ -n "$sock" ]; then
-            export DOCKER_HOST="unix://$sock"
-        fi
+    sock="$(just --quiet _healthy_podman_socket)"
+    if [ -n "$sock" ]; then
+        export DOCKER_HOST="$sock"
     fi
     cargo test --workspace
 

@@ -2,6 +2,7 @@
 //! inbox, fans out live via SSE, and delivers through pluggable channels
 //! starting with email (ADR-006).
 
+pub mod channels;
 pub mod config;
 pub mod consumer;
 pub mod db;
@@ -61,9 +62,15 @@ pub async fn run(config: config::Config) -> anyhow::Result<()> {
     let consumer = consumer::consumer(&config.kafka_bootstrap)?;
     let consumer_pool = pool.clone();
     let consumer_fanout_publisher = platform::pubsub::Publisher::connect(&config.redis_url).await?;
+    let email = std::sync::Arc::new(channels::EmailChannel::new(&config.mailpit_api_url));
     tokio::spawn(async move {
-        if let Err(err) =
-            consumer::run_with_live(consumer, consumer_pool, Some(consumer_fanout_publisher)).await
+        if let Err(err) = consumer::run_with_live(
+            consumer,
+            consumer_pool,
+            Some(consumer_fanout_publisher),
+            vec![email],
+        )
+        .await
         {
             tracing::error!(%err, "notification consumer stopped");
         }

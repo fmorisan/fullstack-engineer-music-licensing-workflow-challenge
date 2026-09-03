@@ -140,7 +140,7 @@ pub fn consumer(bootstrap: &str) -> anyhow::Result<EventConsumer> {
 ///
 /// Returns only on unrecoverable consumer failures.
 pub async fn run(consumer: EventConsumer, pool: PgPool) -> anyhow::Result<()> {
-    run_with_live(consumer, pool, None).await
+    run_with_live(consumer, pool, None, Vec::new()).await
 }
 
 /// Like [`run`], publishing each newly-inserted notification to the live
@@ -153,6 +153,7 @@ pub async fn run_with_live(
     consumer: EventConsumer,
     pool: PgPool,
     publisher: Option<platform::pubsub::Publisher>,
+    channels: Vec<std::sync::Arc<dyn crate::channels::NotificationChannel>>,
 ) -> anyhow::Result<()> {
     loop {
         let message = consumer
@@ -173,6 +174,11 @@ pub async fn run_with_live(
                             .await
                     {
                         tracing::warn!(%err, "live notification publish failed");
+                    }
+                    for channel in &channels {
+                        if let Err(err) = channel.deliver(&row).await {
+                            tracing::warn!(%err, "channel delivery failed");
+                        }
                     }
                 }
                 Ok(None) => {}

@@ -11,6 +11,7 @@
 pub mod elasticsearch;
 pub mod kafka;
 pub mod keys;
+pub mod mailpit;
 pub mod minio;
 pub mod postgres;
 pub mod redis;

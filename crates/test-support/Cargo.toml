@@ -17,6 +17,7 @@ testcontainers = { workspace = true }
 testcontainers-modules = { workspace = true }
 anyhow = { workspace = true }
 reqwest = { workspace = true }
+serde_json = { workspace = true }
 rdkafka = { workspace = true }
 rsa = { workspace = true }
 rand_core = { workspace = true }

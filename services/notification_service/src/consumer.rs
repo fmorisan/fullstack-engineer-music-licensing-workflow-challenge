@@ -156,9 +156,20 @@ pub async fn run_with_live(
     channels: Vec<std::sync::Arc<dyn crate::channels::NotificationChannel>>,
 ) -> anyhow::Result<()> {
     loop {
-        let message = consumer
+        let message = match consumer
             .recv_timeout(std::time::Duration::from_secs(1))
-            .await?;
+            .await
+        {
+            Ok(message) => message,
+            Err(err) => {
+                // Transient consumer errors — a topic not yet created on a
+                // fresh broker, brief leadership moves — must not kill the
+                // service; back off and resubscribe.
+                tracing::warn!(%err, "consumer error; retrying in 1s");
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                continue;
+            }
+        };
         let Some(message) = message else {
             continue;
         };

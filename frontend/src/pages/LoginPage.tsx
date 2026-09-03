@@ -2,6 +2,7 @@
 // reviewers are inside the app in seconds.
 
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 
 type Mode = "login" | "register";
@@ -14,6 +15,7 @@ const DEMO_ACCOUNTS = [
 
 export const LoginPage = () => {
   const { login, register } = useAuth();
+  const navigate = useNavigate();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -39,6 +41,8 @@ export const LoginPage = () => {
           org_name: role === "ADMIN" ? undefined : orgName || `${displayName || email}'s org`,
         });
       }
+      // The role-aware home route takes over from here.
+      navigate("/", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "something went wrong");
     } finally {

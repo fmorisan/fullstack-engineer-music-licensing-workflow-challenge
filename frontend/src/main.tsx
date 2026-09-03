@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import { Layout } from "./components/Layout";
+import { AnonymousOnly } from "./components/AnonymousOnly";
 import { LoginPage } from "./pages/LoginPage";
 import { MoviesPage } from "./pages/MoviesPage";
 import { MovieDetailPage } from "./pages/MovieDetailPage";
@@ -33,7 +34,11 @@ const Protected = ({ children }: { children: React.ReactNode }) => {
 const router = createBrowserRouter([
   {
     path: "/login",
-    element: <LoginPage />,
+    element: (
+      <AnonymousOnly>
+        <LoginPage />
+      </AnonymousOnly>
+    ),
   },
   {
     path: "/",

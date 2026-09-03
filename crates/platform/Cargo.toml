@@ -27,6 +27,8 @@ thiserror = { workspace = true }
 anyhow = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+redis = { workspace = true }
+tokio-stream = { workspace = true }
 
 [dev-dependencies]
 test-support = { workspace = true }

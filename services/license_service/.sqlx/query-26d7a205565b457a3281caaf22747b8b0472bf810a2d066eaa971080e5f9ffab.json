@@ -1,0 +1,96 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, movie_id, scene_number, song_id, studio_id, label_id,\n                            studio_user_id, state, license_fee_cents, start_time_seconds,\n                            end_time_seconds, created_at, updated_at\n                     FROM licenses\n                     WHERE studio_id = $1 AND movie_id = $2 AND scene_number = $3\n                     ORDER BY created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "movie_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "scene_number",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "song_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "studio_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "label_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 6,
+        "name": "studio_user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "license_fee_cents",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 9,
+        "name": "start_time_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "end_time_seconds",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "26d7a205565b457a3281caaf22747b8b0472bf810a2d066eaa971080e5f9ffab"
+}

@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, license_id, sequence, from_state, to_state, action,\n                actor_user_id, license_fee_cents, created_at\n         FROM license_log WHERE license_id = $1 ORDER BY sequence",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "license_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "sequence",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "from_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "to_state",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "action",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "actor_user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "license_fee_cents",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "658e944887614c9595f11d5c39ed89109b0167acce097cab171976919f1ee6cf"
+}

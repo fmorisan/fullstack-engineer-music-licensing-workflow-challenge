@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO license_log\n            (id, license_id, sequence, from_state, to_state, action, actor_user_id, license_fee_cents)\n         VALUES ($1, $2, 1, NULL, $3, 'CREATE', $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4480e370b73214b31b78ca1421860aaa44a07d67054279d55499f86f4b0938ae"
+}

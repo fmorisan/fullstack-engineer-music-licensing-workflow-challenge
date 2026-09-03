@@ -31,19 +31,23 @@ pub struct AuthenticatedUser {
     pub role: Role,
     /// Organization id, when the role belongs to one.
     pub org_id: Option<Uuid>,
+    /// The verified raw bearer token, for propagating the caller's identity
+    /// on service-to-service calls (targets re-verify it).
+    pub bearer_token: Arc<str>,
 }
 
-impl From<Claims> for AuthenticatedUser {
-    fn from(claims: Claims) -> Self {
+impl AuthenticatedUser {
+    /// Assemble a principal from verified claims and the raw token.
+    #[must_use]
+    pub fn from_verified(claims: &Claims, bearer_token: &str) -> Self {
         Self {
             user_id: claims.sub.parse().unwrap_or_default(),
             role: claims.role,
             org_id: claims.org_id,
+            bearer_token: Arc::from(bearer_token),
         }
     }
-}
 
-impl AuthenticatedUser {
     /// Enforce a role requirement at the handler level.
     ///
     /// # Errors
@@ -151,6 +155,7 @@ pub async fn require_auth(
 ) -> Result<Response, AuthError> {
     let token = bearer_token(&req).ok_or(AuthError::Unauthorized)?;
     let claims = auth.verify(token).map_err(|_| AuthError::Unauthorized)?;
-    req.extensions_mut().insert(AuthenticatedUser::from(claims));
+    let principal = AuthenticatedUser::from_verified(&claims, token);
+    req.extensions_mut().insert(principal);
     Ok(next.run(req).await)
 }

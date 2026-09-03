@@ -1,13 +1,7 @@
-//! license_service: license creation and state transitions driven by the
-//! shared state machine in `licensing-core`, license log appends, `license.updated`
-//! outbox events to Kafka, and the `GET /licenses/stream` SSE feed.
+//! license_service entrypoint.
 
-use axum::{Json, Router, routing::get};
-use serde_json::json;
+use license_service::config::Config;
 use tracing_subscriber::EnvFilter;
-
-const SERVICE_NAME: &str = "license_service";
-const DEFAULT_PORT: u16 = 8105;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -17,19 +11,6 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let port: u16 = std::env::var("PORT")
-        .ok()
-        .and_then(|p| p.parse().ok())
-        .unwrap_or(DEFAULT_PORT);
-
-    let app = Router::new().route("/healthz", get(healthz));
-
-    let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await?;
-    tracing::info!(service = SERVICE_NAME, port, "listening");
-    axum::serve(listener, app).await?;
-    Ok(())
-}
-
-async fn healthz() -> Json<serde_json::Value> {
-    Json(json!({ "service": SERVICE_NAME, "status": "ok" }))
+    let config = Config::from_env()?;
+    license_service::run(config).await
 }

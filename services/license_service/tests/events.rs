@@ -212,17 +212,22 @@ async fn transitions_stream_live_over_sse() {
     .await;
     assert_eq!(status, StatusCode::OK, "body: {body}");
 
-    let frame = tokio::time::timeout(Duration::from_secs(5), response.into_body().frame())
-        .await
-        .expect("frame within 5s")
-        .expect("stream alive")
-        .expect("frame decoded");
-
-    let bytes = frame.into_data().unwrap_or_default();
-    let text = String::from_utf8_lossy(&bytes);
-    assert!(text.contains("event: license-updated"), "got: {text}");
-    assert!(text.contains("COUNTER_OFFER"), "got: {text}");
-    assert!(text.contains(&license_id), "got: {text}");
+    // The creation frame may slip through the fanout right after the
+    // stream subscribes; read frames until the counter-offer lands.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    let mut body = response.into_body();
+    let mut saw_counter = false;
+    while let Ok(Some(frame)) = tokio::time::timeout_at(deadline, body.frame()).await {
+        let Ok(frame) = frame else { break };
+        let bytes = frame.into_data().unwrap_or_default();
+        let text = String::from_utf8_lossy(&bytes);
+        assert!(text.contains("event: license-updated"), "got: {text}");
+        if text.contains("COUNTER_OFFER") && text.contains(&license_id) {
+            saw_counter = true;
+            break;
+        }
+    }
+    assert!(saw_counter, "counter-offer frame never arrived");
 }
 
 #[tokio::test]

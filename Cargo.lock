@@ -2264,13 +2264,23 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "axum",
+ "chrono",
+ "http-body-util",
  "licensing-core",
  "platform",
+ "redis",
+ "reqwest",
  "serde",
  "serde_json",
+ "sqlx",
+ "test-support",
+ "thiserror",
  "tokio",
+ "tokio-stream",
+ "tower",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -3864,6 +3874,7 @@ dependencies = [
  "rdkafka",
  "reqwest",
  "rsa",
+ "serde_json",
  "sqlx",
  "testcontainers",
  "testcontainers-modules",

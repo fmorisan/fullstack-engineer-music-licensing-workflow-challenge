@@ -177,3 +177,7 @@ logs service='':
     #!/usr/bin/env bash
     set -euo pipefail
     {{COMPOSE}} $(just --quiet _active_compose_files) logs -f {{service}}
+
+# Seed demo data through the gateway (idempotent; needs the stack up)
+seed:
+    bash infrastructure/docker/seed/seed.sh

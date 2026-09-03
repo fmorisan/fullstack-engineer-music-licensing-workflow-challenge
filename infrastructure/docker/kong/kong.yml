@@ -93,6 +93,12 @@ services:
   - name: license_service
     url: http://license_service:8105
     routes:
+      # SSE stream: no edge jwt plugin (Kong OSS cannot read query-param
+      # tokens); the service middleware validates ?access_token= itself
+      # with the same public key — dual validation preserved.
+      - name: licenses-stream
+        paths: ["/licenses/stream"]
+        strip_path: false
       - name: licenses
         paths: ["/licenses"]
         strip_path: false

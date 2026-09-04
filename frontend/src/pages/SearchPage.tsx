@@ -1,7 +1,7 @@
 // Studio view: fuzzy song search with as-you-type debouncing, and the
 // offer modal that creates a license for a chosen movie/scene.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { licenses, movies, songs } from "../api/endpoints";
@@ -296,8 +296,23 @@ const OfferModal = ({
 
   const maxWindow = useMemo(() => target.sceneEndTime, [target]);
 
+  // Backdrop-click closing must not fire for drags that merely END over the
+  // backdrop (e.g. dragging a window-selector handle past the form edge):
+  // only presses that started on the backdrop count.
+  const pressStartedOnBackdrop = useRef(false);
+
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div
+      className="modal-backdrop"
+      onMouseDown={(e) => {
+        pressStartedOnBackdrop.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (pressStartedOnBackdrop.current && e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <form
         className="modal"
         onClick={(e) => e.stopPropagation()}

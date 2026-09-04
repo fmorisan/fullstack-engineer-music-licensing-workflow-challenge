@@ -155,6 +155,13 @@ pub async fn run_with_live(
     publisher: Option<platform::pubsub::Publisher>,
     channels: Vec<std::sync::Arc<dyn crate::channels::NotificationChannel>>,
 ) -> anyhow::Result<()> {
+    // Zombie guard: a client that lost its group assignment (broker churn,
+    // coordinator failover) surfaces as eternal `Ok(None)` silence — no
+    // errors, no consumption. Every ~15s of quiet we probe the assignment;
+    // two consecutive misses mean the client is out of the group, and the
+    // caller (a supervisor) must rebuild it.
+    let mut empty_polls: u32 = 0;
+    let mut assignment_misses: u32 = 0;
     loop {
         let message = match consumer
             .recv_timeout(std::time::Duration::from_secs(1))
@@ -171,8 +178,25 @@ pub async fn run_with_live(
             }
         };
         let Some(message) = message else {
+            empty_polls = empty_polls.wrapping_add(1);
+            if empty_polls.is_multiple_of(15) {
+                if consumer.assignment_count() == 0 {
+                    assignment_misses += 1;
+                    tracing::warn!(
+                        misses = assignment_misses,
+                        "consumer holds no group assignment"
+                    );
+                    if assignment_misses >= 2 {
+                        anyhow::bail!("consumer lost its group assignment; rebuilding client");
+                    }
+                } else {
+                    assignment_misses = 0;
+                }
+            }
             continue;
         };
+        empty_polls = 0;
+        assignment_misses = 0;
         match serde_json::from_slice::<LicenseEvent>(&message.payload) {
             Ok(event) => match apply_event(&pool, &event).await {
                 Ok(Some(row)) => {

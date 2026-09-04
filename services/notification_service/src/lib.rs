@@ -59,20 +59,34 @@ pub async fn run(config: config::Config) -> anyhow::Result<()> {
     let fanout =
         platform::pubsub::Fanout::spawn(&config.redis_url, licensing_core::NOTIFICATIONS).await?;
 
-    let consumer = consumer::consumer(&config.kafka_bootstrap)?;
+    let consumer_bootstrap = config.kafka_bootstrap.clone();
     let consumer_pool = pool.clone();
     let consumer_fanout_publisher = platform::pubsub::Publisher::connect(&config.redis_url).await?;
     let email = std::sync::Arc::new(channels::EmailChannel::new(&config.mailpit_api_url));
+    // Supervisor: run_with_live only returns on unrecoverable states —
+    // including the zombie guard (lost group assignment). Rebuild the
+    // client and rejoin instead of leaving the service consuming nothing.
     tokio::spawn(async move {
-        if let Err(err) = consumer::run_with_live(
-            consumer,
-            consumer_pool,
-            Some(consumer_fanout_publisher),
-            vec![email],
-        )
-        .await
-        {
-            tracing::error!(%err, "notification consumer stopped");
+        loop {
+            let consumer = match consumer::consumer(&consumer_bootstrap) {
+                Ok(consumer) => consumer,
+                Err(err) => {
+                    tracing::error!(%err, "consumer build failed; retrying in 5s");
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    continue;
+                }
+            };
+            if let Err(err) = consumer::run_with_live(
+                consumer,
+                consumer_pool.clone(),
+                Some(consumer_fanout_publisher.clone()),
+                vec![email.clone()],
+            )
+            .await
+            {
+                tracing::error!(%err, "notification consumer stopped; rebuilding in 5s");
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         }
     });
 

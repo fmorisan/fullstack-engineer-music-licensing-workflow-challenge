@@ -140,6 +140,17 @@ impl EventConsumer {
             Err(_) => Ok(None),
         }
     }
+
+    /// Partitions currently assigned by the consumer group.
+    ///
+    /// Zero means the client holds no assignment — out of the group, stuck
+    /// rejoining after broker churn — and will consume nothing while
+    /// `recv_timeout` keeps returning `Ok(None)` without any error. Loops
+    /// should treat sustained zero as fatal and rebuild the client.
+    #[must_use]
+    pub fn assignment_count(&self) -> usize {
+        self.inner.assignment().map_or(0, |list| list.count())
+    }
 }
 
 /// Sync consumer for test helpers (poll-based).

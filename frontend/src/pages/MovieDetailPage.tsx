@@ -140,7 +140,14 @@ export const MovieDetailPage = () => {
           </div>
         </div>
         <div className="actions">
-          <Link to="/search" state={{ movieId, sceneNumber: scenes[0]?.scene_number }}>
+          <Link
+            to="/search"
+            state={{
+              movieId,
+              sceneNumber: scenes[0]?.scene_number,
+              sceneEndTime: scenes[0]?.screen_time_seconds,
+            }}
+          >
             <button className="primary" type="button">Find music</button>
           </Link>
         </div>

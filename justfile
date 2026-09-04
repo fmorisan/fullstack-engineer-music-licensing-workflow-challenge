@@ -206,3 +206,26 @@ e2e:
     [ -d node_modules ] || npm install
     npx playwright install chromium >/dev/null 2>&1 || true
     npx playwright test
+
+# Coverage gate: full test suite with line-coverage floors (ratcheted).
+coverage:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    sock="$(just --quiet _healthy_podman_socket)"
+    if [ -n "$sock" ]; then
+        export DOCKER_HOST="$sock"
+    fi
+    cargo llvm-cov --summary-only --ignore-filename-regex '/main\.rs$' 2>/dev/null \
+        | python3 scripts/coverage_gate.py
+
+# Full HTML coverage report (non-blocking artifact).
+coverage-html:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    sock="$(just --quiet _healthy_podman_socket)"
+    if [ -n "$sock" ]; then
+        export DOCKER_HOST="$sock"
+    fi
+    cargo llvm-cov --html --output-path target/llvm-cov/html/index.html \
+        --ignore-filename-regex '/main\.rs$' 2>/dev/null
+    echo "report: target/llvm-cov/html/index.html"

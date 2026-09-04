@@ -47,6 +47,53 @@ jobs:
       - name: Build release binaries
         run: cargo build --workspace --release
 
+  coverage:
+    name: Coverage (gate + report)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake g++ libssl-dev pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: "1.96.0"
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+
+      # Blocking: full-suite line coverage against ratcheted floors
+      # (scripts/coverage_gate.py). Entry points (main.rs) are excluded.
+      - name: Coverage gate
+        run: |
+          cargo llvm-cov --summary-only --ignore-filename-regex '/main\.rs$' 2>/dev/null \
+            | python3 scripts/coverage_gate.py
+
+      # Non-blocking: the full HTML report rides along as an artifact.
+      - name: Coverage report
+        if: always()
+        continue-on-error: true
+        run: |
+          cargo llvm-cov --html --output-path target/llvm-cov/html/index.html \
+            --ignore-filename-regex '/main\.rs$' 2>/dev/null
+
+      - name: Upload report
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: target/llvm-cov/html/
+          retention-days: 14
+
   frontend:
     name: Frontend (lint, typecheck, build)
     runs-on: ubuntu-latest

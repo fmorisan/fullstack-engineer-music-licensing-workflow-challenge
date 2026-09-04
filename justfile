@@ -25,7 +25,7 @@ build:
 # Resolve a HEALTHY podman machine socket, restarting the machine when the
 # API socket has been reaped by macOS temp-dir cleanup. Prints nothing when
 # docker is available or podman is unusable.
-#[private]
+# [private]
 _healthy_podman_socket:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -90,12 +90,12 @@ check: fmt-check lint test build
 dev service:
     #!/usr/bin/env bash
     set -euo pipefail
-    db=$(echo "{{service}}" | sed 's/_service//')_db
+    db=$(echo "{{ service }}" | sed 's/_service//')_db
     export DATABASE_URL="${DATABASE_URL:-postgres://acme:acme_dev_only@localhost:5433/$db}"
     export JWT_PRIVATE_KEY_FILE="${JWT_PRIVATE_KEY_FILE:-infrastructure/docker/keys/dev-auth-private.pem}"
     export JWT_PUBLIC_KEY_FILE="${JWT_PUBLIC_KEY_FILE:-infrastructure/docker/keys/dev-auth-public.pem}"
     export SQLX_OFFLINE="${SQLX_OFFLINE:-true}"
-    cargo run -p {{service}}
+    cargo run -p {{ service }}
 
 # ─── Frontend ────────────────────────────────────────────────────────────────
 
@@ -125,60 +125,60 @@ frontend-lint:
 # Detect which stack mode is live by inspecting Kong's declarative config
 # (host-dev mode swaps in kong.host-dev.yml). Prints the compose file set
 # for the ACTIVE mode; full stack when ambiguous/not running.
-#[private]
+# [private]
 _active_compose_files:
     #!/usr/bin/env bash
     set -euo pipefail
     if docker="$(command -v docker)" 2>/dev/null || docker="$(command -v podman)"; then
         mode=$("$docker" inspect acme-licensing-kong-1 2>/dev/null | python3 -c 'import json,sys; envs=json.load(sys.stdin)[0]["Config"]["Env"]; print("\n".join(e for e in envs if e.startswith("KONG_DECLARATIVE_CONFIG=")))' || true)
         if echo "$mode" | grep -q 'host-dev'; then
-            echo "{{HOST_OVERRIDES}}"
+            echo "{{ HOST_OVERRIDES }}"
             exit 0
         fi
     fi
-    echo "{{FULL_STACK}}"
+    echo "{{ FULL_STACK }}"
 
 # Build all service + frontend images sequentially (chef layers shared).
 images:
     #!/usr/bin/env bash
     set -euo pipefail
-    for svc in {{SERVICES}}; do
+    for svc in {{ SERVICES }}; do
         echo "==> image acme-$svc:dev"
-        {{BUILDER}} build -f infrastructure/docker/services.Dockerfile \
+        {{ BUILDER }} build -f infrastructure/docker/services.Dockerfile \
             --build-arg SERVICE="$svc" -t "acme-$svc:dev" .
     done
     echo "==> image acme-frontend:dev"
-    {{BUILDER}} build -f infrastructure/docker/frontend.Dockerfile -t acme-frontend:dev .
+    {{ BUILDER }} build -f infrastructure/docker/frontend.Dockerfile -t acme-frontend:dev .
 
 # Start the FULL stack (infra + services + frontend), building images if
 # needed, wait for healthchecks, bootstrap MinIO buckets. Reviewer mode.
 up: images
-    {{COMPOSE}} {{FULL_STACK}} up -d --no-build --wait
-    {{COMPOSE}} {{FULL_STACK}} run --rm minio-init
+    {{ COMPOSE }} {{ FULL_STACK }} up -d --no-build --wait
+    {{ COMPOSE }} {{ FULL_STACK }} run --rm minio-init
 
 # Stop the stack (volumes preserved)
 down:
     #!/usr/bin/env bash
     set -euo pipefail
-    {{COMPOSE}} -f {{COMPOSE_FILE}} down --remove-orphans
+    {{ COMPOSE }} -f {{ COMPOSE_FILE }} down --remove-orphans
 
 # Stop the stack and delete volumes (fresh databases/media)
 nuke:
     #!/usr/bin/env bash
     set -euo pipefail
-    {{COMPOSE}} -f {{COMPOSE_FILE}} down -v --remove-orphans
+    {{ COMPOSE }} -f {{ COMPOSE_FILE }} down -v --remove-orphans
 
 # Start the stack in host-dev mode: Kong routes to services running on the
 # host via `just dev <service>` (host.containers.internal)
 up-host:
-    {{COMPOSE}} {{HOST_OVERRIDES}} up -d --wait
-    {{COMPOSE}} {{HOST_OVERRIDES}} run --rm minio-init
+    {{ COMPOSE }} {{ HOST_OVERRIDES }} up -d --wait
+    {{ COMPOSE }} {{ HOST_OVERRIDES }} run --rm minio-init
 
 # Stack status (of the active mode)
 ps:
     #!/usr/bin/env bash
     set -euo pipefail
-    {{COMPOSE}} $(just --quiet _active_compose_files) ps
+    {{ COMPOSE }} $(just --quiet _active_compose_files) ps
 
 # Restart one stack service; re-reads bind-mounted configs (inotify does not
 # cross the podman VM boundary, so config edits need a force-recreate) and
@@ -186,14 +186,23 @@ ps:
 restart service:
     #!/usr/bin/env bash
     set -euo pipefail
-    {{COMPOSE}} $(just --quiet _active_compose_files) up -d --force-recreate --no-deps {{service}}
+    {{ COMPOSE }} $(just --quiet _active_compose_files) up -d --force-recreate --no-deps {{ service }}
 
 # Tail stack logs (optionally one service: `just logs kafka`)
 logs service='':
     #!/usr/bin/env bash
     set -euo pipefail
-    {{COMPOSE}} $(just --quiet _active_compose_files) logs -f {{service}}
+    {{ COMPOSE }} $(just --quiet _active_compose_files) logs -f {{ service }}
 
 # Seed demo data through the gateway (idempotent; needs the stack up)
 seed:
     bash infrastructure/docker/seed/seed.sh
+
+# End-to-end negotiation spec against the running stack (just up + just seed).
+e2e:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd frontend/e2e
+    [ -d node_modules ] || npm install
+    npx playwright install chromium >/dev/null 2>&1 || true
+    npx playwright test

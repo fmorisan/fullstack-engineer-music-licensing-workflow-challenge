@@ -252,5 +252,9 @@ async fn real_setup() -> AppState {
     let url = test_support::provision_database("movie").await;
     let pool = db::connect(&url).await.expect("connect");
     db::migrate(&pool).await.expect("migrate");
-    AppState::new(pool, presigner)
+    AppState::new(
+        pool,
+        presigner,
+        movie_service::upstream::Upstream::new("http://127.0.0.1:9").unwrap(),
+    )
 }

@@ -7,11 +7,13 @@ use axum::http::StatusCode;
 use axum::http::header::AUTHORIZATION;
 use http_body_util::BodyExt;
 use movie_service::state::AppState;
+use movie_service::upstream::Upstream;
 use movie_service::{build_router, db};
 use platform::JwtAuth;
 use platform::MediaPresigner;
 use serde_json::{Value, json};
 use std::sync::OnceLock;
+use std::sync::atomic::Ordering;
 use tower::ServiceExt;
 
 struct Fixture {
@@ -39,6 +41,17 @@ fn studio_token() -> String {
 }
 
 async fn setup() -> AppState {
+    setup_with_relationship(std::sync::Arc::new(std::sync::atomic::AtomicBool::new(
+        false,
+    )))
+    .await
+}
+
+/// AppState wired to an in-process license_service stub answering the
+/// relationship check with 204/404 based on the shared flag.
+async fn setup_with_relationship(
+    related: std::sync::Arc<std::sync::atomic::AtomicBool>,
+) -> AppState {
     let url = test_support::provision_database("movie").await;
     let pool = db::connect(&url).await.expect("connect");
     db::migrate(&pool).await.expect("migrate");
@@ -51,7 +64,27 @@ async fn setup() -> AppState {
         300,
     )
     .await;
-    AppState::new(pool, presigner)
+
+    let app = axum::Router::new().route(
+        "/licenses/movies/{movie_id}/relationship",
+        axum::routing::get(move || {
+            let related = related.clone();
+            async move {
+                if related.load(Ordering::SeqCst) {
+                    StatusCode::NO_CONTENT
+                } else {
+                    StatusCode::NOT_FOUND
+                }
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    AppState::new(pool, presigner, Upstream::new(&base).unwrap())
 }
 
 async fn send(state: &AppState, request: Request<Body>) -> (StatusCode, Value) {
@@ -234,4 +267,69 @@ async fn titles_are_validated() {
     )
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "body: {body}");
+}
+
+#[tokio::test]
+async fn labels_read_movies_they_license_but_not_others() {
+    let related = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let state = setup_with_relationship(related.clone()).await;
+    let studio = studio_token();
+    let label = token(licensing_core::Role::Label);
+
+    let (_, body) = req(
+        &state,
+        "POST",
+        "/movies",
+        &studio,
+        Some(movie_body("Label Visible")),
+    )
+    .await;
+    let movie_id = body["id"].as_str().unwrap().to_string();
+    let (scene_status, _) = req(
+        &state,
+        "PUT",
+        &format!("/movies/{movie_id}/scenes"),
+        &studio,
+        Some(json!({
+            "screen_time_seconds": 60,
+            "start_time_seconds": 0,
+            "end_time_seconds": 60,
+            "description": "the decision scene"
+        })),
+    )
+    .await;
+    assert_eq!(scene_status, StatusCode::CREATED);
+
+    // No licensing relationship yet: 404, with no existence leak.
+    let (status, _) = req(&state, "GET", &format!("/movies/{movie_id}"), &label, None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // license_service confirms the relationship: full detail with scenes.
+    related.store(true, Ordering::SeqCst);
+    let (status, body) = req(&state, "GET", &format!("/movies/{movie_id}"), &label, None).await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(body["scenes"].as_array().map(Vec::len), Some(1));
+
+    // Reads only: labels still cannot list or mutate.
+    let (status, _) = req(&state, "GET", "/movies", &label, None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn admins_read_any_movie() {
+    let state = setup().await;
+    let studio = studio_token();
+    let (_, body) = req(
+        &state,
+        "POST",
+        "/movies",
+        &studio,
+        Some(movie_body("Admin Visible")),
+    )
+    .await;
+    let movie_id = body["id"].as_str().unwrap().to_string();
+
+    let admin = token(licensing_core::Role::Admin);
+    let (status, _) = req(&state, "GET", &format!("/movies/{movie_id}"), &admin, None).await;
+    assert_eq!(status, StatusCode::OK);
 }

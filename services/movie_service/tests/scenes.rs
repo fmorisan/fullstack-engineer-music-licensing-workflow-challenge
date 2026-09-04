@@ -50,7 +50,11 @@ async fn setup() -> AppState {
         300,
     )
     .await;
-    AppState::new(pool, presigner)
+    AppState::new(
+        pool,
+        presigner,
+        movie_service::upstream::Upstream::new("http://127.0.0.1:9").unwrap(),
+    )
 }
 
 async fn send(state: &AppState, request: Request<Body>) -> (StatusCode, Value) {

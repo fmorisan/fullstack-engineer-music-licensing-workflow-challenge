@@ -20,6 +20,8 @@ pub struct Config {
     pub s3_bucket: String,
     /// Pre-signed URL lifetime in seconds.
     pub presign_expiry_secs: u64,
+    /// license_service base URL (label relationship checks).
+    pub license_service_url: String,
     /// HTTP listen port.
     pub port: u16,
 }
@@ -48,6 +50,8 @@ impl Config {
             .ok()
             .and_then(|p| p.parse().ok())
             .unwrap_or(DEFAULT_PORT);
+        let license_service_url =
+            std::env::var("LICENSE_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8105".into());
         Ok(Self {
             database_url,
             s3_endpoint,
@@ -55,6 +59,7 @@ impl Config {
             s3_secret_key,
             s3_bucket,
             presign_expiry_secs,
+            license_service_url,
             port,
         })
     }

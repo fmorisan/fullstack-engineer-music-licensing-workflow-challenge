@@ -6,6 +6,8 @@ use sqlx::PgPool;
 
 use platform::MediaPresigner;
 
+use crate::upstream::Upstream;
+
 /// Cheaply cloneable state handed to every handler.
 #[derive(Clone)]
 pub struct AppState {
@@ -15,13 +17,18 @@ pub struct AppState {
 struct Inner {
     pool: PgPool,
     media: MediaPresigner,
+    upstream: Upstream,
 }
 
 impl AppState {
     /// Assemble the state.
-    pub fn new(pool: PgPool, media: MediaPresigner) -> Self {
+    pub fn new(pool: PgPool, media: MediaPresigner, upstream: Upstream) -> Self {
         Self {
-            inner: Arc::new(Inner { pool, media }),
+            inner: Arc::new(Inner {
+                pool,
+                media,
+                upstream,
+            }),
         }
     }
 
@@ -35,5 +42,11 @@ impl AppState {
     #[must_use]
     pub fn media(&self) -> &MediaPresigner {
         &self.inner.media
+    }
+
+    /// license_service client (label relationship checks).
+    #[must_use]
+    pub fn upstream(&self) -> &Upstream {
+        &self.inner.upstream
     }
 }

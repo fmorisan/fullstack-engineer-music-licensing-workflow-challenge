@@ -8,6 +8,7 @@ pub mod error;
 pub mod handlers;
 pub mod models;
 pub mod state;
+pub mod upstream;
 
 use axum::Json;
 use axum::Router;
@@ -71,7 +72,8 @@ pub async fn run(config: config::Config) -> anyhow::Result<()> {
         config.presign_expiry_secs,
     )
     .await;
-    let state = AppState::new(pool, media);
+    let upstream = upstream::Upstream::new(&config.license_service_url)?;
+    let state = AppState::new(pool, media, upstream);
     let auth =
         JwtAuth::from_public_key_file(std::env::var("JWT_PUBLIC_KEY_FILE").unwrap_or_else(|_| {
             format!(

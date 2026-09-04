@@ -120,17 +120,51 @@ pub async fn create(
 
 /// `GET /movies/:id` — movie detail including its scenes.
 ///
+/// Readable by the owning studio, admins, and labels holding at least one
+/// license on the movie (verified against license_service, the system of
+/// record) — labels need the scene picture to decide on offers.
+///
 /// # Errors
 ///
-/// `404` when the movie does not exist or belongs to another studio.
+/// `404` when the movie does not exist, or when the caller has no right to
+/// see it (no existence leak).
 pub async fn detail(
     State(state): State<AppState>,
     Extension(user): Extension<AuthenticatedUser>,
     Path(movie_id): Path<Uuid>,
 ) -> ApiResult<Json<MovieDetail>> {
-    user.ensure_role(licensing_core::Role::Studio)
-        .map_err(|_| ApiError::Forbidden)?;
-    let movie = owned_movie(&state, &user, movie_id).await?;
+    let movie = match user.role {
+        licensing_core::Role::Studio => owned_movie(&state, &user, movie_id).await?,
+        licensing_core::Role::Admin => sqlx::query_as!(
+            MovieRow,
+            "SELECT id, studio_id, title, description, poster_key, created_at, updated_at
+                 FROM movies WHERE id = $1",
+            movie_id,
+        )
+        .fetch_optional(state.pool())
+        .await?
+        .ok_or(ApiError::NotFound)?,
+        licensing_core::Role::Label => {
+            let row = sqlx::query_as!(
+                MovieRow,
+                "SELECT id, studio_id, title, description, poster_key, created_at, updated_at
+                 FROM movies WHERE id = $1",
+                movie_id,
+            )
+            .fetch_optional(state.pool())
+            .await?
+            .ok_or(ApiError::NotFound)?;
+            let related = state
+                .upstream()
+                .label_licenses_movie(&user, movie_id)
+                .await
+                .map_err(ApiError::Internal)?;
+            if !related {
+                return Err(ApiError::NotFound);
+            }
+            row
+        }
+    };
     let scenes = sqlx::query_as!(
         SceneRow,
         "SELECT movie_id, scene_number, screen_time_seconds, start_time_seconds,

@@ -22,9 +22,9 @@ thiserror = { workspace = true }
 anyhow = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
+reqwest = { workspace = true }
 
 [dev-dependencies]
 test-support = { workspace = true }
 tower = { workspace = true }
 http-body-util = { workspace = true }
-reqwest = { workspace = true }

@@ -25,7 +25,8 @@ RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
 # Cap parallelism: unbounded rustc jobs OOM smaller build VMs.
-ENV CARGO_BUILD_JOBS=3
+ARG BUILD_JOBS=3
+ENV CARGO_BUILD_JOBS=${BUILD_JOBS}
 COPY --from=planner /app/recipe.json recipe.json
 # Build dependencies only (cached layer).
 RUN cargo chef cook --release --recipe-path recipe.json

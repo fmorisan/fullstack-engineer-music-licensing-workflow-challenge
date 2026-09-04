@@ -38,6 +38,7 @@ impl SongRow {
             length_seconds: u32::try_from(self.length_seconds).unwrap_or(0),
             box_art_key: self.box_art_key.clone(),
             audio_preview_key: self.audio_preview_key.clone(),
+            created_at: Some(self.created_at),
         }
     }
 

@@ -1,7 +1,7 @@
 // Movie detail: scene strip with a timeline, add-scene form, and the
 // license board per scene. Offer creation links into Find Music.
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { licenses, movies } from "../api/endpoints";
@@ -9,21 +9,24 @@ import { mediaUrl, uploadMoviePoster, uploadSceneCapture } from "../api/media";
 import { ApiError } from "../api/client";
 import { LicenseBoard } from "../components/LicenseBoard";
 import { MediaUpload } from "../components/MediaUpload";
+import { MovieTimeline } from "../components/MovieTimeline";
 import type { License, MovieDetail, Scene } from "../api/types";
 
 const SceneChip = ({
   scene,
   movie,
+  selected,
   onUploaded,
 }: {
   scene: Scene;
   movie: MovieDetail;
+  selected: boolean;
   onUploaded: () => void;
 }) => {
   const offset = (scene.start_time_seconds / Math.max(1, totalRuntime(movie))) * 100;
   const width = (scene.screen_time_seconds / Math.max(1, totalRuntime(movie))) * 100;
   return (
-    <div className="scene-chip">
+    <div className={`scene-chip${selected ? " selected" : ""}`}>
       <strong>Scene {scene.scene_number}</strong>
       <div className="timeline" title="position within the film">
         <div style={{ marginLeft: `${offset}%`, width: `${width}%` }} />
@@ -53,6 +56,13 @@ export const MovieDetailPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [screenTime, setScreenTime] = useState("60");
   const [description, setDescription] = useState("");
+  const [selectedScene, setSelectedScene] = useState<number | null>(null);
+  const boards = useRef(new Map<number, HTMLDivElement>());
+
+  const focusScene = (sceneNumber: number) => {
+    setSelectedScene(sceneNumber);
+    boards.current.get(sceneNumber)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
 
   const detail = useQuery({
     queryKey: ["movie", movieId],
@@ -137,16 +147,25 @@ export const MovieDetailPage = () => {
       </div>
 
       {scenes.length > 0 && (
-        <div className="scene-strip" style={{ marginBottom: 20 }}>
-          {scenes.map((scene) => (
-            <SceneChip
-              key={scene.scene_number}
-              scene={scene}
-              movie={detail.data!}
-              onUploaded={() => void invalidate()}
-            />
-          ))}
-        </div>
+        <>
+          <MovieTimeline
+            scenes={scenes}
+            licenses={board.data ?? []}
+            selected={selectedScene}
+            onSelectScene={focusScene}
+          />
+          <div className="scene-strip" style={{ marginBottom: 20 }}>
+            {scenes.map((scene) => (
+              <SceneChip
+                key={scene.scene_number}
+                scene={scene}
+                movie={detail.data!}
+                selected={selectedScene === scene.scene_number}
+                onUploaded={() => void invalidate()}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       <form
@@ -182,13 +201,21 @@ export const MovieDetailPage = () => {
       {error && <p className="form-error">{error}</p>}
 
       {scenes.map((scene) => (
-        <LicenseBoard
+        <div
           key={scene.scene_number}
-          movieId={movieId}
-          scene={scene}
-          licenses={licensesByScene.get(scene.scene_number) ?? []}
-          perspective="studio"
-        />
+          ref={(element) => {
+            if (element) boards.current.set(scene.scene_number, element);
+            else boards.current.delete(scene.scene_number);
+          }}
+          className={selectedScene === scene.scene_number ? "board-focus" : undefined}
+        >
+          <LicenseBoard
+            movieId={movieId}
+            scene={scene}
+            licenses={licensesByScene.get(scene.scene_number) ?? []}
+            perspective="studio"
+          />
+        </div>
       ))}
     </div>
   );

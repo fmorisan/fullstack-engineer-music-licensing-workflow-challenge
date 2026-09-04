@@ -205,3 +205,8 @@ button.demo:hover { color: var(--text); }
 .media-thumb { width: 100%; max-width: 220px; border-radius: 8px; border: 1px solid var(--border); object-fit: cover; }
 .media-thumb.poster { width: 96px; }
 .media-upload audio { width: 100%; }
+
+/* Creation-form file pickers */
+.file-picker { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.file-picker-row { display: flex; gap: 8px; align-items: center; }
+.media-thumb.picker { width: 64px; height: 64px; }

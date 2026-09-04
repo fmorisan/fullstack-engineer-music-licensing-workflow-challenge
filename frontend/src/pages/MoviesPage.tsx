@@ -4,23 +4,41 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { movies } from "../api/endpoints";
+import { mediaUrl, uploadMoviePoster } from "../api/media";
 import { ApiError } from "../api/client";
+import { FilePickerField } from "../components/FilePickerField";
 import type { Movie } from "../api/types";
 
 export const MoviesPage = () => {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [poster, setPoster] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const list = useQuery({ queryKey: ["movies"], queryFn: movies.list });
 
+  // Presigning needs an existing owner, so creation runs first and any
+  // picked poster rides the standard pipeline right after; an upload
+  // failure downgrades to a warning (the movie exists, "Replace" retries).
   const create = useMutation({
-    mutationFn: () => movies.create({ title, description }),
-    onSuccess: () => {
+    mutationFn: async (): Promise<string | null> => {
+      const created = await movies.create({ title, description });
+      if (!poster) return null;
+      try {
+        await uploadMoviePoster(created, poster);
+        return null;
+      } catch (err) {
+        return `Movie created, but the poster upload failed: ${
+          err instanceof Error ? err.message : "unknown error"
+        }`;
+      }
+    },
+    onSuccess: (warning) => {
       setTitle("");
       setDescription("");
-      setError(null);
+      setPoster(null);
+      setError(warning);
       queryClient.invalidateQueries({ queryKey: ["movies"] });
     },
     onError: (err) =>
@@ -58,6 +76,14 @@ export const MoviesPage = () => {
             placeholder="A rain-soaked chase through a neon city."
           />
         </label>
+        <FilePickerField
+          label="Poster"
+          accept="image/*"
+          variant="image"
+          file={poster}
+          onSelect={setPoster}
+          disabled={create.isPending}
+        />
         <button type="submit" className="primary" disabled={create.isPending || !title.trim()}>
           {create.isPending ? "Adding…" : "Add movie"}
         </button>
@@ -76,6 +102,13 @@ export const MoviesPage = () => {
       <div className="grid">
         {list.data?.map((movie: Movie) => (
           <Link key={movie.id} to={`/movies/${movie.id}`} className="card" style={{ color: "inherit" }}>
+            {movie.poster_key && (
+              <img
+                className="media-thumb"
+                src={mediaUrl("movie", movie.poster_key)}
+                alt={`${movie.title} poster`}
+              />
+            )}
             <h3>{movie.title}</h3>
             <p className="meta">{movie.description || "No description."}</p>
             <div className="spacer" />

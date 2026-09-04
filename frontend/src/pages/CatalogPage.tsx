@@ -3,8 +3,14 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { songs } from "../api/endpoints";
-import { uploadAudioPreview, uploadBoxArt } from "../api/media";
+import {
+  MAX_PREVIEW_SECONDS,
+  readAudioDuration,
+  uploadAudioPreview,
+  uploadBoxArt,
+} from "../api/media";
 import { ApiError } from "../api/client";
+import { FilePickerField } from "../components/FilePickerField";
 import { MediaUpload } from "../components/MediaUpload";
 import { formatDuration, type Song } from "../api/types";
 
@@ -13,21 +19,59 @@ export const CatalogPage = () => {
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [length, setLength] = useState("180");
+  const [boxArt, setBoxArt] = useState<File | null>(null);
+  const [preview, setPreview] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const list = useQuery({ queryKey: ["songs"], queryFn: songs.listMine });
 
+  // Reject over-cap clips the moment they are picked — before the song
+  // (and the bytes) ever leave the browser.
+  const validatePreview = async (file: File): Promise<string | null> => {
+    try {
+      const duration = await readAudioDuration(file);
+      return duration > MAX_PREVIEW_SECONDS
+        ? `preview clips are capped at ${MAX_PREVIEW_SECONDS}s (this one is ${Math.round(duration)}s)`
+        : null;
+    } catch {
+      return "could not read the audio file";
+    }
+  };
+
+  // Same create-then-upload chain as movies: each media failure downgrades
+  // to a warning; the song itself is safely published either way.
   const create = useMutation({
-    mutationFn: () =>
-      songs.create({
+    mutationFn: async (): Promise<string | null> => {
+      const created = await songs.create({
         title,
         author,
         length_seconds: Number(length),
-      }),
-    onSuccess: () => {
+      });
+      const warnings: string[] = [];
+      if (boxArt) {
+        try {
+          await uploadBoxArt(created, boxArt);
+        } catch (err) {
+          warnings.push(`box art: ${err instanceof Error ? err.message : "unknown error"}`);
+        }
+      }
+      if (preview) {
+        try {
+          await uploadAudioPreview(created, preview);
+        } catch (err) {
+          warnings.push(`preview: ${err instanceof Error ? err.message : "unknown error"}`);
+        }
+      }
+      return warnings.length
+        ? `Song published, but some uploads failed — retry on its card (${warnings.join("; ")})`
+        : null;
+    },
+    onSuccess: (warning) => {
       setTitle("");
       setAuthor("");
-      setError(null);
+      setBoxArt(null);
+      setPreview(null);
+      setError(warning);
       queryClient.invalidateQueries({ queryKey: ["songs"] });
     },
     onError: (err) =>
@@ -63,6 +107,23 @@ export const CatalogPage = () => {
           Length (s)
           <input required type="number" min="1" value={length} onChange={(e) => setLength(e.target.value)} />
         </label>
+        <FilePickerField
+          label="Box art"
+          accept="image/*"
+          variant="image"
+          file={boxArt}
+          onSelect={setBoxArt}
+          disabled={create.isPending}
+        />
+        <FilePickerField
+          label={`Preview (≤${MAX_PREVIEW_SECONDS}s)`}
+          accept="audio/*"
+          variant="audio"
+          file={preview}
+          onSelect={setPreview}
+          validate={validatePreview}
+          disabled={create.isPending}
+        />
         <button type="submit" className="primary" disabled={create.isPending}>
           {create.isPending ? "Publishing…" : "Publish song"}
         </button>

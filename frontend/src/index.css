@@ -250,3 +250,7 @@ button.demo:hover { color: var(--text); }
 .ws-existing.ACCEPTED { background: color-mix(in srgb, var(--ok) 55%, transparent); border: 1px solid var(--ok); }
 .ws-existing.REJECTED { background: color-mix(in srgb, var(--danger) 30%, transparent); border: 1px dashed var(--danger); opacity: 0.35; }
 .ws-overlap { color: var(--warn); font-size: 12px; }
+
+/* Song selection cards */
+.song-card .media-thumb { max-width: none; height: 110px; }
+.song-card audio { width: 100%; margin-top: 4px; }

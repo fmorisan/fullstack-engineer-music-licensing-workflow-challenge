@@ -83,8 +83,8 @@ describe("SearchPage pre-search suggestions", () => {
             title: "Nightcall",
             author: "Kavinsky",
             length_seconds: 252,
-            box_art_key: null,
-            audio_preview_key: null,
+            box_art_key: "songs/s1/box_art/abc",
+            audio_preview_key: "songs/s1/preview/abc",
             created_at: "2026-09-01T00:00:00Z",
           },
         ],
@@ -103,6 +103,14 @@ describe("SearchPage pre-search suggestions", () => {
     expect(screen.getByRole("heading", { name: "Nightcall" })).toBeInTheDocument();
     const expected = new Date("2026-09-01T00:00:00Z").toLocaleDateString();
     expect(screen.getByText(`added ${expected}`, { exact: false })).toBeInTheDocument();
+    // Album art and the preview player ride along.
+    const art = screen.getByAltText("Nightcall box art");
+    expect(art).toHaveAttribute(
+      "src",
+      "http://localhost:9000/song-media/songs/s1/box_art/abc",
+    );
+    const player = document.querySelector("audio");
+    expect(player?.getAttribute("src")).toContain("/song-media/songs/s1/preview/abc");
     // Trending chip.
     expect(screen.getByRole("button", { name: "nightcall" })).toBeInTheDocument();
     // No search ran yet.

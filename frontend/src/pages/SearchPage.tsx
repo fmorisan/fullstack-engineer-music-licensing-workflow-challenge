@@ -7,6 +7,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { licenses, movies, songs } from "../api/endpoints";
 import { ApiError } from "../api/client";
 import { useSongTitles } from "../hooks/useSongTitles";
+import { mediaUrl } from "../api/media";
 import { WindowSelector } from "../components/WindowSelector";
 import { formatDuration, formatFee, type SongHit } from "../api/types";
 
@@ -180,13 +181,23 @@ const SongCard = ({
   disabled: boolean;
   onLicense: () => void;
 }) => (
-  <div className="card">
+  <div className="card song-card">
+    {hit.box_art_key && (
+      <img
+        className="media-thumb"
+        src={mediaUrl("song", hit.box_art_key)}
+        alt={`${hit.title} box art`}
+      />
+    )}
     <h3>{hit.title}</h3>
     <p className="meta">{hit.author}</p>
     <p className="meta">
       {formatDuration(hit.length_seconds)}
       {hit.created_at && ` · added ${new Date(hit.created_at).toLocaleDateString()}`}
     </p>
+    {hit.audio_preview_key && (
+      <audio controls preload="none" src={mediaUrl("song", hit.audio_preview_key)} />
+    )}
     <div className="spacer" />
     <button type="button" className="primary" disabled={disabled} onClick={onLicense}>
       License this song
@@ -295,10 +306,21 @@ const OfferModal = ({
           create.mutate();
         }}
       >
-        <h3>License “{song.title}”</h3>
-        <p className="meta">
-          Scene {target.sceneNumber} · playback window within the scene (0–{maxWindow}s)
-        </p>
+        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+          {song.box_art_key && (
+            <img
+              className="media-thumb picker"
+              src={mediaUrl("song", song.box_art_key)}
+              alt={`${song.title} box art`}
+            />
+          )}
+          <div>
+            <h3 style={{ margin: 0 }}>License “{song.title}”</h3>
+            <p className="meta" style={{ margin: 0 }}>
+              Scene {target.sceneNumber} · playback window within the scene (0–{maxWindow}s)
+            </p>
+          </div>
+        </div>
 
         <WindowSelector
           maxWindow={maxWindow}

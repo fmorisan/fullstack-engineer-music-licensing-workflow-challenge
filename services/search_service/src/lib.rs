@@ -51,11 +51,25 @@ pub async fn run(config: config::Config) -> anyhow::Result<()> {
     let es = es::client(&config.elasticsearch_url)?;
     es::ensure_index(&es).await?;
 
-    let consumer = indexer::consumer(&config.kafka_bootstrap)?;
+    let indexer_bootstrap = config.kafka_bootstrap.clone();
     let indexer_es = es.clone();
+    // Supervisor: indexer::run only returns on unrecoverable states —
+    // including the zombie guard (lost group assignment). Rebuild the
+    // client and rejoin instead of leaving the catalog stale.
     tokio::spawn(async move {
-        if let Err(err) = indexer::run(consumer, indexer_es).await {
-            tracing::error!(%err, "indexer stopped");
+        loop {
+            let consumer = match indexer::consumer(&indexer_bootstrap) {
+                Ok(consumer) => consumer,
+                Err(err) => {
+                    tracing::error!(%err, "indexer consumer build failed; retrying in 5s");
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    continue;
+                }
+            };
+            if let Err(err) = indexer::run(consumer, indexer_es.clone()).await {
+                tracing::error!(%err, "indexer stopped; rebuilding in 5s");
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         }
     });
 

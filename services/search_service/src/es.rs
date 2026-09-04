@@ -71,7 +71,8 @@ pub async fn ensure_index(client: &Elasticsearch) -> anyhow::Result<()> {
                 },
                 "length_seconds": { "type": "integer" },
                 "box_art_key": { "type": "keyword" },
-                "audio_preview_key": { "type": "keyword" }
+                "audio_preview_key": { "type": "keyword" },
+                "created_at": { "type": "date" }
             }
         }
     });
@@ -93,6 +94,24 @@ pub async fn ensure_index(client: &Elasticsearch) -> anyhow::Result<()> {
             "unexpected index creation result {status}: {text}"
         );
     }
+
+    // Merge the date mapping into pre-existing indexes (create-time
+    // mappings only apply to fresh ones); adding a field is idempotent.
+    let put = client
+        .indices()
+        .put_mapping(elasticsearch::indices::IndicesPutMappingParts::Index(&[
+            INDEX,
+        ]))
+        .body(serde_json::json!({
+            "properties": { "created_at": { "type": "date" } }
+        }))
+        .send()
+        .await?;
+    anyhow::ensure!(
+        put.status_code().is_success(),
+        "created_at mapping merge failed: {}",
+        put.status_code()
+    );
     Ok(())
 }
 
@@ -162,6 +181,8 @@ pub struct SongHit {
     pub box_art_key: Option<String>,
     /// Audio preview key, when uploaded.
     pub audio_preview_key: Option<String>,
+    /// When the song entered the catalog (absent on pre-upgrade docs).
+    pub created_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// A page of search results.
@@ -217,6 +238,48 @@ pub async fn search(
     anyhow::ensure!(
         response.status_code().is_success(),
         "search failed: {}",
+        response.status_code()
+    );
+    let parsed: serde_json::Value = response.json().await?;
+    let total = parsed["hits"]["total"]["value"].as_u64().unwrap_or(0);
+    let hits = parsed["hits"]["hits"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|hit| {
+                    let src = &hit["_source"];
+                    serde_json::from_value::<SongHit>(src.clone()).ok()
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(SearchPage { total, hits })
+}
+
+/// Newest-first catalog listing for pre-search suggestions. Docs without a
+/// `created_at` (pre-upgrade) sort last; the song_id tiebreak keeps the
+/// order stable across pages.
+///
+/// # Errors
+///
+/// Fails on transport/cluster errors or malformed responses.
+pub async fn newest(client: &Elasticsearch, size: i64) -> anyhow::Result<SearchPage> {
+    let body = serde_json::json!({
+        "size": size,
+        "query": { "match_all": {} },
+        "sort": [
+            { "created_at": { "order": "desc", "missing": "_last" } },
+            { "song_id": "asc" }
+        ]
+    });
+    let response = client
+        .search(SearchParts::Index(&[INDEX]))
+        .body(body)
+        .send()
+        .await?;
+    anyhow::ensure!(
+        response.status_code().is_success(),
+        "newest query failed: {}",
         response.status_code()
     );
     let parsed: serde_json::Value = response.json().await?;

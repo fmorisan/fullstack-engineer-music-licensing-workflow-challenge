@@ -44,6 +44,7 @@ fn record(song_id: Uuid, title: &str) -> SongRecord {
         length_seconds: 200,
         box_art_key: None,
         audio_preview_key: None,
+        created_at: Some(chrono::Utc::now()),
     }
 }
 

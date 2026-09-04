@@ -116,6 +116,7 @@ fn song(title: &str) -> licensing_core::SongRecord {
         length_seconds: 210,
         box_art_key: None,
         audio_preview_key: None,
+        created_at: Some(chrono::Utc::now()),
     }
 }
 
@@ -223,4 +224,77 @@ async fn unauthenticated_search_is_rejected() {
         .unwrap();
     let (status, _, _) = send(&state, request).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn newest_ranks_recent_additions_first() {
+    let state = setup().await;
+    // The suite shares one ES index, so "now" collides with other tests'
+    // songs; win by a clear future margin, and pin the extremes instead of
+    // exact positions.
+    let mut older = song(&format!("Older-{}", Uuid::now_v7().simple()));
+    let mut newer = song(&format!("Newer-{}", Uuid::now_v7().simple()));
+    let mut undated = song(&format!("Undated-{}", Uuid::now_v7().simple()));
+    older.created_at = Some(chrono::Utc::now() - chrono::Duration::hours(24));
+    newer.created_at = Some(chrono::Utc::now() + chrono::Duration::hours(1));
+    undated.created_at = None; // pre-upgrade docs sort last
+
+    for record in [&older, &newer, &undated] {
+        index_eventually(&state, record).await;
+    }
+
+    let (status, body, cache) = get(&state, "/songs/newest?size=50").await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    assert_eq!(cache, "miss");
+    let titles: Vec<String> = body["hits"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|hit| hit["title"].as_str().unwrap().to_string())
+        .collect();
+    let position = |prefix: &str| {
+        titles
+            .iter()
+            .position(|title| title.starts_with(prefix))
+            .unwrap_or_else(|| panic!("{prefix} missing from {titles:?}"))
+    };
+    assert_eq!(position("Newer-"), 0, "clearly-newest doc must rank first");
+    assert!(
+        position("Older-") < position("Undated-"),
+        "dated docs outrank undated: {titles:?}"
+    );
+    assert_eq!(
+        position("Undated-"),
+        titles.len() - 1,
+        "undated docs sort last: {titles:?}"
+    );
+
+    // Cached second read.
+    let (_, _, cache) = get(&state, "/songs/newest?size=50").await;
+    assert_eq!(cache, "hit");
+}
+
+#[tokio::test]
+async fn hot_queries_rank_by_search_volume() {
+    let state = setup().await;
+
+    // Three searches for one term, one for another (unique per test).
+    let hot = format!("heat-{}", Uuid::now_v7().simple());
+    let cold = format!("chill-{}", Uuid::now_v7().simple());
+    for _ in 0..3 {
+        let _ = get(&state, &format!("/songs/search?q={hot}")).await;
+    }
+    let _ = get(&state, &format!("/songs/search?q={cold}")).await;
+
+    let (status, body, _) = get(&state, "/songs/hot-queries?limit=10").await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    let rows = body.as_array().unwrap();
+    assert!(rows.len() >= 2, "both queries present: {rows:?}");
+    assert_eq!(rows[0]["query"].as_str().unwrap(), hot);
+    assert!((rows[0]["score"].as_f64().unwrap() - 3.0).abs() < f64::EPSILON);
+    let cold_row = rows
+        .iter()
+        .find(|row| row["query"] == cold.as_str())
+        .unwrap();
+    assert!((cold_row["score"].as_f64().unwrap() - 1.0).abs() < f64::EPSILON);
 }

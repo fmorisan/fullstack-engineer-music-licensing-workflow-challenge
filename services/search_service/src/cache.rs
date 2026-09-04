@@ -77,6 +77,12 @@ pub async fn bump_popularity(redis: &ConnectionManager, query: &str) -> redis::R
         .map(|_: f64| ())
 }
 
+/// Cache key for the newest-songs suggestion page.
+#[must_use]
+pub fn newest_key(size: i64) -> String {
+    format!("search:newest:s:{size}")
+}
+
 /// Read the popularity score of a query (tests/diagnostics).
 ///
 /// # Errors
@@ -87,6 +93,27 @@ pub async fn popularity(redis: &ConnectionManager, query: &str) -> redis::RedisR
     let fragment = &normalized[..normalized.len().min(KEY_QUERY_MAX)];
     let score: Option<f64> = redis.clone().zscore(HOT_QUERIES_KEY, fragment).await?;
     Ok(score.unwrap_or(0.0))
+}
+
+/// Top queries by request count, highest first.
+///
+/// # Errors
+///
+/// Propagates redis errors; callers surface them as 500s (this endpoint is
+/// the product of the cache, not a cache-aside user).
+pub async fn top_queries(
+    redis: &ConnectionManager,
+    limit: usize,
+) -> redis::RedisResult<Vec<(String, f64)>> {
+    let rows: Vec<(String, f64)> = redis
+        .clone()
+        .zrevrange_withscores(
+            HOT_QUERIES_KEY,
+            0,
+            isize::try_from(limit.saturating_sub(1)).unwrap_or(0),
+        )
+        .await?;
+    Ok(rows)
 }
 
 /// Remaining TTL of a key in seconds (tests/diagnostics).

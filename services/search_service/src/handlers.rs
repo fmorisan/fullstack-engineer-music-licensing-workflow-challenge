@@ -14,6 +14,7 @@ use crate::es;
 use crate::state::AppState;
 
 /// Query parameters of `GET /songs/search`.
+
 #[derive(Debug, Deserialize)]
 pub struct SearchParams {
     /// Free-text query; fuzzy-matched over title (boosted) and author, with
@@ -88,4 +89,88 @@ pub async fn search(
     let mut response = Json(page).into_response();
     with_cache_header(&mut response, false)?;
     Ok(response)
+}
+
+/// Query parameters of `GET /songs/newest`.
+#[derive(Debug, Deserialize)]
+pub struct NewestParams {
+    /// Page size (1-50, default 8).
+    pub size: Option<i64>,
+}
+
+/// `GET /songs/newest` — newest-first catalog slice powering pre-search
+/// suggestions; cache-aside like search (worst-case staleness ≈ TTL +
+/// index lag).
+///
+/// # Errors
+///
+/// `500` when the backing stores fail.
+pub async fn newest(
+    State(state): State<AppState>,
+    Extension(_user): Extension<AuthenticatedUser>,
+    Query(params): Query<NewestParams>,
+) -> ApiResult<axum::response::Response> {
+    let size = params.size.unwrap_or(8).clamp(1, 50);
+    let key = cache::newest_key(size);
+
+    let cached = cache::get_cached(state.redis(), &key).await.unwrap_or(None);
+    let page = match cached {
+        Some(page) => {
+            let mut response = Json(page).into_response();
+            with_cache_header(&mut response, true)?;
+            return Ok(response);
+        }
+        None => es::newest(state.es(), size).await?,
+    };
+
+    let _ = cache::set_cached(
+        state.redis(),
+        &key,
+        &serde_json::to_value(&page).unwrap_or_default(),
+        state.search_cache_ttl_secs(),
+    )
+    .await;
+
+    let mut response = Json(page).into_response();
+    with_cache_header(&mut response, false)?;
+    Ok(response)
+}
+
+/// One trending query with its request count.
+#[derive(Debug, serde::Serialize)]
+pub struct HotQuery {
+    /// The normalized query string.
+    pub query: String,
+    /// Total requests for this query (cached or not).
+    pub score: f64,
+}
+
+/// Query parameters of `GET /songs/hot-queries`.
+#[derive(Debug, Deserialize)]
+pub struct HotQueriesParams {
+    /// How many queries to return (1-25, default 8).
+    pub limit: Option<usize>,
+}
+
+/// `GET /songs/hot-queries` — queries ranked by search volume from the
+/// popularity ZSET, powering the trending-search chips.
+///
+/// # Errors
+///
+/// `500` when Redis fails (trending is the product of the cache; a stale
+/// fallback would lie).
+pub async fn hot_queries(
+    State(state): State<AppState>,
+    Extension(_user): Extension<AuthenticatedUser>,
+    Query(params): Query<HotQueriesParams>,
+) -> ApiResult<Json<Vec<HotQuery>>> {
+    let limit = params.limit.unwrap_or(8).clamp(1, 25);
+    let rows = cache::top_queries(state.redis(), limit)
+        .await
+        .map_err(|err| ApiError::Internal(err.into()))?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|(query, score)| HotQuery { query, score })
+            .collect(),
+    ))
 }

@@ -199,3 +199,9 @@ button.demo:hover { color: var(--text); }
 .fee-input span { color: var(--muted); }
 .hint { color: var(--muted); font-size: 12px; margin: 0; }
 .form-error { color: var(--danger); font-size: 13px; }
+
+/* Media uploads */
+.media-upload { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.media-thumb { width: 100%; max-width: 220px; border-radius: 8px; border: 1px solid var(--border); object-fit: cover; }
+.media-thumb.poster { width: 96px; }
+.media-upload audio { width: 100%; }

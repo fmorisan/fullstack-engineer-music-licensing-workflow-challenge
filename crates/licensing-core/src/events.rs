@@ -41,6 +41,11 @@ pub struct SongRecord {
     pub box_art_key: Option<String>,
     /// S3 object key for the (max 30s) audio preview, once uploaded.
     pub audio_preview_key: Option<String>,
+    /// When the song entered the catalog; drives recency-ranked
+    /// suggestions. Optional so events published before the field existed
+    /// (and in-flight replays) still deserialize.
+    #[serde(default)]
+    pub created_at: Option<DateTime<Utc>>,
 }
 
 /// Envelope published to the `song.events` topic.
@@ -129,6 +134,7 @@ mod tests {
             length_seconds: 252,
             box_art_key: Some("song-media/abc/box.jpg".into()),
             audio_preview_key: None,
+            created_at: Some("2026-01-01T00:00:00Z".parse().unwrap()),
         }
     }
 
@@ -193,9 +199,26 @@ mod tests {
             "length_seconds",
             "box_art_key",
             "audio_preview_key",
+            "created_at",
         ];
         expected.sort_unstable();
         assert_eq!(skeys, expected);
+    }
+
+    #[test]
+    fn song_record_created_at_defaults_when_absent() {
+        // Pre-upgrade events (and in-flight replays) deserialize without it.
+        let legacy = r#"{
+            "song_id": "018e6d5a-0000-7000-8000-000000000001",
+            "label_id": "018e6d5a-0000-7000-8000-000000000002",
+            "title": "Old Pressing",
+            "author": "Someone",
+            "length_seconds": 200,
+            "box_art_key": null,
+            "audio_preview_key": null
+        }"#;
+        let record: SongRecord = serde_json::from_str(legacy).unwrap();
+        assert_eq!(record.created_at, None);
     }
 
     #[test]

@@ -5,11 +5,21 @@ import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { licenses, movies } from "../api/endpoints";
+import { mediaUrl, uploadMoviePoster, uploadSceneCapture } from "../api/media";
 import { ApiError } from "../api/client";
 import { LicenseBoard } from "../components/LicenseBoard";
+import { MediaUpload } from "../components/MediaUpload";
 import type { License, MovieDetail, Scene } from "../api/types";
 
-const SceneChip = ({ scene, movie }: { scene: Scene; movie: MovieDetail }) => {
+const SceneChip = ({
+  scene,
+  movie,
+  onUploaded,
+}: {
+  scene: Scene;
+  movie: MovieDetail;
+  onUploaded: () => void;
+}) => {
   const offset = (scene.start_time_seconds / Math.max(1, totalRuntime(movie))) * 100;
   const width = (scene.screen_time_seconds / Math.max(1, totalRuntime(movie))) * 100;
   return (
@@ -22,6 +32,14 @@ const SceneChip = ({ scene, movie }: { scene: Scene; movie: MovieDetail }) => {
       <span className="meta">
         film {scene.start_time_seconds}s → {scene.end_time_seconds}s ({scene.screen_time_seconds}s)
       </span>
+      <MediaUpload
+        bucket="movie"
+        variant="image"
+        label="Add capture"
+        mediaKey={scene.capture_key}
+        onUpload={(file) => uploadSceneCapture(movie.movie.id, scene, file)}
+        onDone={onUploaded}
+      />
     </div>
   );
 };
@@ -44,6 +62,8 @@ export const MovieDetailPage = () => {
     queryKey: ["licenses", "movie", movieId],
     queryFn: () => licenses.forMovie(movieId),
   });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["movie", movieId] });
 
   const addScene = useMutation({
     mutationFn: () => {
@@ -84,11 +104,30 @@ export const MovieDetailPage = () => {
   return (
     <div>
       <div className="page-header">
-        <div>
-          <h2>{movie.title}</h2>
-          <p className="meta" style={{ margin: 0 }}>
-            {scenes.length} scene{scenes.length === 1 ? "" : "s"} · {totalRuntime(detail.data)}s runtime
-          </p>
+        <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+          {movie.poster_key && (
+            <img
+              className="media-thumb poster"
+              src={mediaUrl("movie", movie.poster_key)}
+              alt={`${movie.title} poster`}
+            />
+          )}
+          <div>
+            <h2>{movie.title}</h2>
+            <p className="meta" style={{ margin: 0 }}>
+              {scenes.length} scene{scenes.length === 1 ? "" : "s"} · {totalRuntime(detail.data)}s runtime
+            </p>
+            <div style={{ marginTop: 8 }}>
+              <MediaUpload
+                bucket="movie"
+                variant="image"
+                label="Upload poster"
+                mediaKey={movie.poster_key}
+                onUpload={(file) => uploadMoviePoster(movie, file)}
+                onDone={() => void invalidate()}
+              />
+            </div>
+          </div>
         </div>
         <div className="actions">
           <Link to="/search" state={{ movieId, sceneNumber: scenes[0]?.scene_number }}>
@@ -100,7 +139,12 @@ export const MovieDetailPage = () => {
       {scenes.length > 0 && (
         <div className="scene-strip" style={{ marginBottom: 20 }}>
           {scenes.map((scene) => (
-            <SceneChip key={scene.scene_number} scene={scene} movie={detail.data!} />
+            <SceneChip
+              key={scene.scene_number}
+              scene={scene}
+              movie={detail.data!}
+              onUploaded={() => void invalidate()}
+            />
           ))}
         </div>
       )}

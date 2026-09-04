@@ -1,4 +1,151 @@
-# 🚀 Fullstack Engineer Challenge – Music Licensing Workflow
+# ACME Licensing — Music Licensing Workflow
+
+Full-stack implementation of the music licensing challenge for **ACME BROS
+PICTURES**: Rust + Axum microservices, a React SPA, and a complete local
+stack — negotiation state machine, real-time updates over SSE, pre-signed
+media uploads, event-driven search, and an NLE-style timeline UI.
+
+**Original challenge brief preserved at the bottom of this file.**
+
+## Quickstart
+
+Requires: a container runtime (tested with podman; Docker works too), `just`,
+Rust 1.96, and Node 22.
+
+```bash
+just up        # infra + 6 services + frontend, healthchecked, MinIO bootstrapped
+just seed      # demo users, a movie with scenes, a label catalog (idempotent)
+```
+
+| What        | Where                                          |
+| ----------- | ---------------------------------------------- |
+| Frontend    | http://localhost:5173                          |
+| Gateway     | http://localhost:8080 (Kong, db-less)          |
+| Mailpit     | http://localhost:8025 (outbound email inbox)   |
+| Kong admin  | http://localhost:8081                          |
+| MinIO       | http://localhost:9001 (media objects)          |
+
+Demo accounts (from `just seed`):
+
+| Role    | Email                     | Password       |
+| ------- | ------------------------- | -------------- |
+| Studio  | `grace@acme.example`      | `nw-derulo-99` |
+| Label   | `warp-label@acme.example` | `label-pass-99`|
+| Admin   | `admin@acme.example`      | `admin-pass-99`|
+
+## Five-minute tour
+
+1. **Studio** (Grace): *Movies* → open a movie. The page opens with an
+   **NLE-style timeline**: scene blocks on the video lane (capture photos as
+   thumbnails), licenses on the music lane color-coded by state. Create a
+   movie with a poster, or a scene with a capture, straight from the forms —
+   pre-signed uploads land in MinIO and render immediately.
+2. *Find music*: suggestions greet you before you type — **trending searches**
+   (ranked by real query volume) and the **freshest catalog additions** with
+   box art and 30-second preview players. License a song: drag the playback
+   window on the scene track (existing licenses render behind it with live
+   overlap warnings; rejected ones don't count).
+3. **Label** (Warp): the bell moves **live over SSE** — no reload. The
+   notification names the song, scene, and movie, and clicks through to the
+   **movie context page**: the full timeline with *every* license on the
+   movie (competitors read-only), your rows with counter / accept / reject.
+4. Counter → the studio's badge moves live → accept from the notification →
+   both sides converge on ACCEPTED on their timelines. Mailpit holds the
+   emails for each step.
+5. Incoming licenses / catalog pages cover the rest: label-side catalog
+   management with media, studio-side per-scene license boards with fees in
+   cents and a full negotiation log.
+
+## Architecture
+
+Six Axum services (Rust, one Postgres database each — no shared DBs), a
+Kong db-less gateway, Kafka, Redis, ElasticSearch, MinIO, Mailpit.
+Domain rules live exactly once in `crates/licensing-core` (state machine,
+roles, event contracts); cross-service facts are validated over HTTP with
+propagated JWTs; concurrency invariants are enforced by the database (scene
+overlap via an EXCLUDE constraint).
+
+```
+frontend ── Kong (RS256 edge validation) ── auth / movie / song / search / license / notification
+                     │                            │            │
+                     │                     presigned PUT    labels' movie reads gated by a
+                     │                     (browser→MinIO)   license-relationship check
+song ──outbox──▶ Kafka `song.events`  ──▶ search indexer (ES) ──▶ suggestions/search (Redis cache)
+license ──outbox──▶ Kafka `license.events` ──▶ notification service ──▶ inbox + SSE + email
+SSE fanout via Redis PubSub, org-scoped server-side
+```
+
+Details and tradeoffs: [`docs/architecture/`](docs/architecture/README.md)
+(system diagram, repo layout, and the ADR index — 12 ADRs covering the
+gateway, auth, outbox, search, SSE, and media decisions).
+
+## Testing
+
+- **Domain**: exhaustive state-machine matrices and property tests in
+  `licensing-core` (48-case oracle).
+- **Integration**: every service is tested through its router against real
+  Postgres/Kafka/Redis/ES/MinIO/Mailpit containers
+  (`crates/test-support` fixtures). Upstreams are stubbed in-process and
+  honor the propagated bearer.
+- **Frontend**: Vitest + Testing Library (44 tests).
+- **End-to-end**: one Playwright spec drives the **full negotiation in two
+  authenticated browser contexts** — SSE badge movement, notification
+  click-through, counter/accept, and Mailpit email assertions
+  (`just e2e`, requires the running stack).
+- **Coverage**: `just coverage` gates the full suite against ratcheted
+  per-crate floors (overall ≥75%, currently 79.9%); `just coverage-html`
+  produces the detailed report. CI runs the gate on every PR and attaches
+  the report as an artifact.
+
+Local gates: `just check` (fmt, clippy -D warnings, tests, build) and
+`just e2e`. CI mirrors them.
+
+## Key decisions (short version)
+
+- **REST over GraphQL**: resource-shaped CRUD with role-scoped reads;
+  real-time is a stream, not a query — SSE fits better than subscriptions
+  here (ADR-005).
+- **SSE over WebSockets**: one-directional server→client updates, automatic
+  reconnection, and no socket-tier in the gateway; live frames fan out via
+  Redis PubSub so any service instance serves any client.
+- **Transactional outbox → Kafka**: license/song changes publish exactly
+  what the transaction committed (at-least-once; consumers are idempotent
+  by event id / document id).
+- **Auth**: RS256 with a JWKS endpoint; Kong validates at the edge,
+  services re-validate — SSE query-param tokens are exempted at the edge
+  only (Kong OSS limitation) and verified service-side. 15-minute access
+  tokens in memory; rotating refresh tokens in HttpOnly cookies with
+  family revocation on replay (ADR-011/012).
+- **Media**: pre-signed PUTs straight from the browser to MinIO (the JWT
+  never touches object storage); keys recorded through the owning service.
+
+Honest limitations: license windows are scene-relative playback positions —
+there is no song-offset field, so an excerpt always starts at the song's
+beginning; ElasticSearch and Kafka run single-node (dev posture); the dev
+JWT keypair is a committed fixture; buckets are public-read locally
+(production assumes CDN serving, per ADR-009).
+
+## Repository layout
+
+```
+crates/licensing-core    domain: state machine, roles, events (no I/O)
+crates/platform          shared infra: JWT auth, outbox relay, Kafka, pubsub, media
+crates/test-support      testcontainer fixtures + RSA/JWT helpers
+services/*               six Axum services (auth, movie, song, search, license, notification)
+frontend/                React 19 + Vite SPA (TanStack Query, React Router) + e2e/
+infrastructure/docker    compose files, Kong config, service/frontend images
+docs/architecture        system docs + ADRs
+scripts/                 coverage gate
+justfile                 every workflow (up, dev, test, coverage, e2e, seed…)
+```
+
+---
+
+# Original challenge brief
+
+The remainder of this file is the challenge as issued.
+
+## 🚀 Fullstack Engineer Challenge – Music Licensing Workflow
 
 Welcome to the **Fullstack Engineer Challenge!** 🎸🎬  
 In this challenge, you'll help the fictional company **ACME BROS PICTURES** build a system to manage the **music licensing process** for their movies.
@@ -52,7 +199,7 @@ Your task is to create a simple system to:
   - If applicable, your reasoning for using REST, GraphQL, or both
 
 > [!TIP]
-> Use the `docs` folder to store any additional documentation or diagrams that help explain your solution.
+> Use the `docs` folder to store any additional documentation or diagrams that help explain your solution.  
 > Mention any assumptions or constraints in your `README.md`.
 
 ### 📂 Folder Suggestions
@@ -124,7 +271,7 @@ Here are some tips to help you succeed:
 
 - If you feel confident on the backend but less on the frontend, focus there—but try to show some basic UI.
 - Likewise, if you're stronger on the frontend, make sure your backend has clean structure and endpoints.
-- Time-box it: we don’t expect perfection. We want to see **how you think and solve problems**.
+- Time-box it: we don't expect perfection. We want to see **how you think and solve problems**.
 
 ## 🏁 Good luck and have fun building
 

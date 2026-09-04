@@ -225,7 +225,6 @@ button.demo:hover { color: var(--text); }
 .tl-license.OFFER { background: color-mix(in srgb, var(--warn) 55%, transparent); border: 1px solid var(--warn); }
 .tl-license.COUNTER_OFFER { background: color-mix(in srgb, var(--accent-2) 55%, transparent); border: 1px solid var(--accent-2); }
 .tl-license.ACCEPTED { background: color-mix(in srgb, var(--ok) 55%, transparent); border: 1px solid var(--ok); }
-.tl-license.REJECTED { background: color-mix(in srgb, var(--danger) 30%, transparent); border: 1px dashed var(--danger); opacity: 0.7; background-image: repeating-linear-gradient(45deg, transparent, transparent 4px, color-mix(in srgb, var(--danger) 25%, transparent) 4px, color-mix(in srgb, var(--danger) 25%, transparent) 8px); }
 .tl-legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted, #9aa3b2); }
 .tl-legend span { display: inline-flex; gap: 5px; align-items: center; }
 .tl-legend i { position: static; top: auto; bottom: auto; width: 14px; height: 8px; }
@@ -248,7 +247,6 @@ button.demo:hover { color: var(--text); }
 .ws-existing.OFFER { background: color-mix(in srgb, var(--warn) 55%, transparent); border: 1px solid var(--warn); }
 .ws-existing.COUNTER_OFFER { background: color-mix(in srgb, var(--accent-2) 55%, transparent); border: 1px solid var(--accent-2); }
 .ws-existing.ACCEPTED { background: color-mix(in srgb, var(--ok) 55%, transparent); border: 1px solid var(--ok); }
-.ws-existing.REJECTED { background: color-mix(in srgb, var(--danger) 30%, transparent); border: 1px dashed var(--danger); opacity: 0.35; }
 .ws-overlap { color: var(--warn); font-size: 12px; }
 
 /* Song selection cards */

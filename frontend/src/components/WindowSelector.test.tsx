@@ -87,7 +87,8 @@ describe("WindowSelector", () => {
     const accepted = screen.getByTitle(/Nightcall — Kavinsky · Accepted · 20s–40s/);
     expect(accepted.style.left).toBe(`${(20 / 60) * 100}%`);
     expect(accepted.style.width).toBe(`${(20 / 60) * 100}%`);
-    expect(screen.getByTitle(/Old pick — Someone · Rejected · 45s–55s/)).toBeInTheDocument();
+    // Rejected negotiations don't render on the placement track either.
+    expect(screen.queryByTitle(/Old pick/)).not.toBeInTheDocument();
     // Disjoint windows: no overlap note.
     expect(screen.queryByText(/overlaps/)).not.toBeInTheDocument();
   });

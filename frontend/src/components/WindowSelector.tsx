@@ -71,16 +71,18 @@ export const WindowSelector = ({
   // length is unheard.
   const audible = Math.min(end - start, songLength);
 
-  // Rejected/withdrawn negotiations are dead — they don't count as overlap.
-  const collisions = (existing ?? []).filter(
-    (use) => use.state !== "REJECTED" && use.end > start && use.start < end,
+  // Rejected negotiations are dead: they neither render nor count as
+  // overlap on the placement track.
+  const liveExisting = (existing ?? []).filter((use) => use.state !== "REJECTED");
+  const collisions = liveExisting.filter(
+    (use) => use.end > start && use.start < end,
   );
 
   return (
     <div className="ws">
       <div className="ws-caption meta">scene track — drag the handles</div>
       <div className="ws-track" ref={track} data-testid="ws-track">
-        {(existing ?? []).map((use, index) => (
+        {liveExisting.map((use, index) => (
           <span
             key={index}
             className={`ws-existing ${use.state}`}

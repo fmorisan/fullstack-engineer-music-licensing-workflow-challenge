@@ -78,7 +78,7 @@ describe("MovieTimeline", () => {
     expect(segment.style.width).toBe("25%");
   });
 
-  it("colors segments by state and renders the legend", () => {
+  it("colors segments by state, renders the legend, and drops rejected", () => {
     mount([
       license({ id: "l1", state: "OFFER" }),
       license({ id: "l2", state: "COUNTER_OFFER", scene_number: 2, start_time_seconds: 0, end_time_seconds: 20 }),
@@ -88,10 +88,14 @@ describe("MovieTimeline", () => {
     expect(screen.getAllByTitle(/Offer out/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getByTitle(/Countered/)).toBeInTheDocument();
     expect(screen.getAllByTitle(/Accepted/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByTitle(/Rejected/).length).toBeGreaterThanOrEqual(1);
-    for (const label of ["Offer out", "Countered", "Accepted", "Rejected"]) {
+    // Rejected negotiations are dead — no segment, no legend entry.
+    expect(screen.queryByTitle(/Rejected/)).not.toBeInTheDocument();
+    for (const label of ["Offer out", "Countered", "Accepted"]) {
       expect(screen.getByText(label, { selector: ".tl-legend span" })).toBeInTheDocument();
     }
+    expect(
+      screen.queryByText("Rejected", { selector: ".tl-legend span" }),
+    ).not.toBeInTheDocument();
   });
 
   it("reports scene selection", async () => {

@@ -34,6 +34,8 @@ export const LabelMovieContextPage = () => {
 
   const { movie, scenes } = detail.data;
   const rows = context.data ?? [];
+  // Rejected negotiations are dead — the count, like the track, is live-only.
+  const live = rows.filter((license) => license.state !== "REJECTED").length;
 
   const byScene = new Map<number, License[]>();
   for (const license of rows) {
@@ -62,7 +64,7 @@ export const LabelMovieContextPage = () => {
             </p>
             <p className="meta" style={{ margin: "4px 0 0" }}>
               {scenes.length} scene{scenes.length === 1 ? "" : "s"} · {runtime}s runtime ·{" "}
-              {rows.length} license{rows.length === 1 ? "" : "s"} on this movie
+              {live} live license{live === 1 ? "" : "s"} on this movie
             </p>
           </div>
         </div>

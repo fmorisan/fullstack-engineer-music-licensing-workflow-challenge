@@ -30,6 +30,8 @@ export const MovieTimeline = ({ scenes, licenses, selected, onSelectScene }: Pro
 
   const sceneByNumber = new Map(scenes.map((scene) => [scene.scene_number, scene]));
   const titles = useSongTitles(licenses.map((license) => license.song_id));
+  // Rejected negotiations are dead — they don't ride the track.
+  const live = licenses.filter((license) => license.state !== "REJECTED");
 
   return (
     <div className="tl" style={{ marginBottom: 20 }}>
@@ -69,8 +71,8 @@ export const MovieTimeline = ({ scenes, licenses, selected, onSelectScene }: Pro
 
       {/* Licenses (music lane) */}
       <div className="tl-lane licenses" aria-label="licenses">
-        {licenses.length === 0 && <span className="meta tl-empty">no licenses yet</span>}
-        {licenses.map((license) => {
+        {live.length === 0 && <span className="meta tl-empty">no live licenses</span>}
+        {live.map((license) => {
           const scene = sceneByNumber.get(license.scene_number);
           if (!scene) return null; // stale row for a scene we can't see
           const filmStart = scene.start_time_seconds + license.start_time_seconds;
@@ -93,7 +95,7 @@ export const MovieTimeline = ({ scenes, licenses, selected, onSelectScene }: Pro
 
       {/* Legend */}
       <div className="tl-legend">
-        {(["OFFER", "COUNTER_OFFER", "ACCEPTED", "REJECTED"] as LicenseState[]).map((state) => (
+        {(["OFFER", "COUNTER_OFFER", "ACCEPTED"] as LicenseState[]).map((state) => (
           <span key={state}>
             <i className={`tl-license ${state}`} />
             {STATE_LABELS[state]}

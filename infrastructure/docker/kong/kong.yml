@@ -81,7 +81,7 @@ services:
       # Discovery stays eventually consistent; song DETAIL reads are served
       # authoritatively by song_service (longest-path match wins below).
       - name: songs-search
-        paths: ["/songs/search"]
+        paths: ["/songs/search", "/songs/newest", "/songs/hot-queries"]
         strip_path: false
         plugins:
           - name: jwt

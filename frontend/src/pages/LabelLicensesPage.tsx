@@ -6,6 +6,7 @@ import { licenses } from "../api/endpoints";
 import { useSongTitles } from "../hooks/useSongTitles";
 import { formatFee, STATE_LABELS, type License } from "../api/types";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../api/client";
 
@@ -36,7 +37,8 @@ const IncomingRow = ({ license }: { license: License }) => {
       </td>
       <td>{formatFee(license.license_fee_cents)}</td>
       <td className="meta">
-        scene {license.scene_number} · {license.start_time_seconds}s–{license.end_time_seconds}s
+        scene {license.scene_number} · {license.start_time_seconds}s–{license.end_time_seconds}s ·{" "}
+        <Link to={`/movies/${license.movie_id}/context`}>view movie</Link>
       </td>
       <td>
         {active && license.state === "OFFER" && (

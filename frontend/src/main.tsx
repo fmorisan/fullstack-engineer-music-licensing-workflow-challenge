@@ -11,6 +11,7 @@ import { MovieDetailPage } from "./pages/MovieDetailPage";
 import { SearchPage } from "./pages/SearchPage";
 import { CatalogPage } from "./pages/CatalogPage";
 import { LabelLicensesPage } from "./pages/LabelLicensesPage";
+import { LabelMovieContextPage } from "./pages/LabelMovieContextPage";
 import "./index.css";
 
 const Home = () => {
@@ -50,6 +51,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Home /> },
       { path: "movies", element: <MoviesPage /> },
+      { path: "movies/:movieId/context", element: <LabelMovieContextPage /> },
       { path: "movies/:movieId", element: <MovieDetailPage /> },
       { path: "search", element: <SearchPage /> },
       { path: "catalog", element: <CatalogPage /> },

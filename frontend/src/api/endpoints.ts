@@ -79,6 +79,9 @@ export const licenses = {
   forMovie: (movieId: string) =>
     api.get<License[]>(`/licenses?movie_id=${movieId}`),
   forLabel: () => api.get<License[]>("/licenses"),
+  /** Every license on a movie — the label's negotiation context. */
+  forMovieContext: (movieId: string) =>
+    api.get<License[]>(`/licenses/movies/${movieId}`),
   detail: (id: string) => api.get<LicenseDetail>(`/licenses/${id}`),
   act: (id: string, action: string, license_fee_cents?: number) =>
     api.put<License>(`/licenses/${id}`, { action, license_fee_cents }),

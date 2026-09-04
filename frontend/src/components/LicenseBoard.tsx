@@ -16,10 +16,20 @@ interface Props {
   scene: Scene;
   licenses: License[];
   perspective: "studio" | "label";
+  /** When set, rows this predicate rejects render read-only (e.g. other
+   * labels' licenses in the shared movie context). */
+  canAct?: (license: License) => boolean;
 }
 
-export const LicenseBoard = ({ movieId, scene, licenses: rows, perspective }: Props) => {
+export const LicenseBoard = ({
+  movieId,
+  scene,
+  licenses: rows,
+  perspective,
+  canAct,
+}: Props) => {
   const titles = useSongTitles(rows.map((row) => row.song_id));
+  const actable = canAct ?? (() => true);
   return (
     <div className="card" style={{ marginBottom: 16 }}>
       <div className="row">
@@ -58,6 +68,7 @@ export const LicenseBoard = ({ movieId, scene, licenses: rows, perspective }: Pr
                 license={license}
                 songTitle={titles.get(license.song_id) ?? "…"}
                 perspective={perspective}
+                actable={actable(license)}
               />
             ))}
           </tbody>
@@ -97,10 +108,12 @@ const LicenseRow = ({
   license,
   songTitle,
   perspective,
+  actable,
 }: {
   license: License;
   songTitle: string;
   perspective: "studio" | "label";
+  actable: boolean;
 }) => {
   const queryClient = useQueryClient();
   const [countering, setCountering] = useState<string | null>(null);
@@ -133,7 +146,8 @@ const LicenseRow = ({
         {license.start_time_seconds}s–{license.end_time_seconds}s
       </td>
       <td>
-        {actionsFor(license.state, perspective).map(({ action, label, kind }) => {
+        {actable &&
+          actionsFor(license.state, perspective).map(({ action, label, kind }) => {
           const needsFee = action === "OFFER" || action === "COUNTER_OFFER";
           const open = countering === action;
           return (
@@ -174,9 +188,10 @@ const LicenseRow = ({
                   </button>
                 </span>
               )}
-            </span>
-          );
-        })}
+             </span>
+           );
+          })}
+        {!actable && <span className="meta">another label's license</span>}
         {error && <span className="form-error" style={{ marginLeft: 8 }}>{error}</span>}
       </td>
     </tr>

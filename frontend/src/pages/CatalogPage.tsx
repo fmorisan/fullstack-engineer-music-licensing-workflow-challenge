@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { songs } from "../api/endpoints";
+import { uploadAudioPreview, uploadBoxArt } from "../api/media";
 import { ApiError } from "../api/client";
+import { MediaUpload } from "../components/MediaUpload";
 import { formatDuration, type Song } from "../api/types";
 
 export const CatalogPage = () => {
@@ -81,6 +83,24 @@ export const CatalogPage = () => {
             <h3>{song.title}</h3>
             <p className="meta">{song.author}</p>
             <p className="meta">{formatDuration(song.length_seconds)}</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
+              <MediaUpload
+                bucket="song"
+                variant="image"
+                label="Upload box art"
+                mediaKey={song.box_art_key}
+                onUpload={(file) => uploadBoxArt(song, file)}
+                onDone={() => void queryClient.invalidateQueries({ queryKey: ["songs"] })}
+              />
+              <MediaUpload
+                bucket="song"
+                variant="audio"
+                label="Upload preview (≤30s)"
+                mediaKey={song.audio_preview_key}
+                onUpload={(file) => uploadAudioPreview(song, file)}
+                onDone={() => void queryClient.invalidateQueries({ queryKey: ["songs"] })}
+              />
+            </div>
             <div className="spacer" />
             <span className="meta">Published {new Date(song.created_at).toLocaleDateString()}</span>
           </div>

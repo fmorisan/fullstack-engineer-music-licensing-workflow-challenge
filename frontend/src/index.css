@@ -242,3 +242,11 @@ button.demo:hover { color: var(--text); }
 .ws-audible { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--accent-2) 45%, transparent); border-radius: 8px 0 0 8px; }
 .ws-label { position: absolute; top: 50%; transform: translateY(-50%); font-size: 10px; padding: 0 6px; }
 .ws-label:last-child { right: 0; }
+
+/* Existing licensed songs on the window selector */
+.ws-existing { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; opacity: 0.5; }
+.ws-existing.OFFER { background: color-mix(in srgb, var(--warn) 55%, transparent); border: 1px solid var(--warn); }
+.ws-existing.COUNTER_OFFER { background: color-mix(in srgb, var(--accent-2) 55%, transparent); border: 1px solid var(--accent-2); }
+.ws-existing.ACCEPTED { background: color-mix(in srgb, var(--ok) 55%, transparent); border: 1px solid var(--ok); }
+.ws-existing.REJECTED { background: color-mix(in srgb, var(--danger) 30%, transparent); border: 1px dashed var(--danger); opacity: 0.35; }
+.ws-overlap { color: var(--warn); font-size: 12px; }

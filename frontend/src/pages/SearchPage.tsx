@@ -6,6 +6,7 @@ import { useLocation } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { licenses, movies, songs } from "../api/endpoints";
 import { ApiError } from "../api/client";
+import { useSongTitles } from "../hooks/useSongTitles";
 import { WindowSelector } from "../components/WindowSelector";
 import { formatDuration, formatFee, type SongHit } from "../api/types";
 
@@ -176,6 +177,23 @@ const OfferModal = ({
   const [end, setEnd] = useState(String(Math.min(30, target.sceneEndTime)));
   const [error, setError] = useState<string | null>(null);
 
+  // The scene's existing licenses, for the NLE-style overlap view. Shares
+  // the movie-detail cache key so negotiations update both views.
+  const sceneLicenses = useQuery({
+    queryKey: ["licenses", "movie", target.movieId],
+    queryFn: () => licenses.forMovie(target.movieId),
+  });
+  const inScene = (sceneLicenses.data ?? []).filter(
+    (license) => license.scene_number === target.sceneNumber,
+  );
+  const titles = useSongTitles(inScene.map((license) => license.song_id));
+  const existing = inScene.map((license) => ({
+    start: license.start_time_seconds,
+    end: license.end_time_seconds,
+    state: license.state,
+    label: titles.get(license.song_id) ?? "another song",
+  }));
+
   // The selector owns integer windows; the inputs stay the source of truth
   // for typing exact values.
   const setWindow = (nextStart: number, nextEnd: number) => {
@@ -220,6 +238,7 @@ const OfferModal = ({
           songLength={song.length_seconds}
           start={Number(start)}
           end={Number(end)}
+          existing={existing}
           onChange={setWindow}
         />
 

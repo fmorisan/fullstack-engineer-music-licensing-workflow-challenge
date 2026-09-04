@@ -69,4 +69,60 @@ describe("WindowSelector", () => {
     );
     expect(screen.getByText(/whole song/)).toBeInTheDocument();
   });
+
+  it("renders the scene's other licensed songs as state-colored segments", () => {
+    render(
+      <WindowSelector
+        maxWindow={60}
+        songLength={195}
+        start={0}
+        end={10}
+        onChange={() => {}}
+        existing={[
+          { start: 20, end: 40, state: "ACCEPTED", label: "Nightcall — Kavinsky" },
+          { start: 45, end: 55, state: "REJECTED", label: "Old pick — Someone" },
+        ]}
+      />,
+    );
+    const accepted = screen.getByTitle(/Nightcall — Kavinsky · Accepted · 20s–40s/);
+    expect(accepted.style.left).toBe(`${(20 / 60) * 100}%`);
+    expect(accepted.style.width).toBe(`${(20 / 60) * 100}%`);
+    expect(screen.getByTitle(/Old pick — Someone · Rejected · 45s–55s/)).toBeInTheDocument();
+    // Disjoint windows: no overlap note.
+    expect(screen.queryByText(/overlaps/)).not.toBeInTheDocument();
+  });
+
+  it("flags overlap with live windows and ignores rejected ones", () => {
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <WindowSelector
+        maxWindow={60}
+        songLength={195}
+        start={0}
+        end={10}
+        onChange={onChange}
+        existing={[
+          { start: 5, end: 20, state: "OFFER", label: "Nightcall — Kavinsky" },
+          { start: 8, end: 12, state: "REJECTED", label: "Old pick — Someone" },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/overlaps Nightcall — Kavinsky/)).toBeInTheDocument();
+
+    // Drag clear of both (rejected overlap never counts).
+    rerender(
+      <WindowSelector
+        maxWindow={60}
+        songLength={195}
+        start={21}
+        end={30}
+        onChange={onChange}
+        existing={[
+          { start: 5, end: 20, state: "OFFER", label: "Nightcall — Kavinsky" },
+          { start: 8, end: 12, state: "REJECTED", label: "Old pick — Someone" },
+        ]}
+      />,
+    );
+    expect(screen.queryByText(/overlaps/)).not.toBeInTheDocument();
+  });
 });

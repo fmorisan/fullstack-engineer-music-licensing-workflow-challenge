@@ -1,10 +1,20 @@
 // Draggable playback window for the offer modal: two handles on the
-// scene track (0..scene screen time) pick the license window; the song
-// track below shows exactly which excerpt of the track that window buys
-// (the song plays from its start for the window's duration).
+// scene track (0..scene screen time) pick the license window, with the
+// scene's other licensed songs rendered behind as state-colored segments —
+// NLE-style, so overlap is visible while placing. The song track below
+// shows exactly which excerpt of the track that window buys (the song
+// plays from its start for the window's duration).
 
 import { useRef } from "react";
-import { formatDuration } from "../api/types";
+import { formatDuration, STATE_LABELS, type LicenseState } from "../api/types";
+
+/** A song already licensed into this scene (scene-relative window). */
+export interface ExistingUse {
+  start: number;
+  end: number;
+  state: LicenseState;
+  label: string;
+}
 
 interface Props {
   /** Scene screen time in seconds (window ceiling). */
@@ -13,6 +23,7 @@ interface Props {
   songLength: number;
   start: number;
   end: number;
+  existing?: ExistingUse[];
   onChange: (start: number, end: number) => void;
 }
 
@@ -24,6 +35,7 @@ export const WindowSelector = ({
   songLength,
   start,
   end,
+  existing,
   onChange,
 }: Props) => {
   const track = useRef<HTMLDivElement>(null);
@@ -59,10 +71,23 @@ export const WindowSelector = ({
   // length is unheard.
   const audible = Math.min(end - start, songLength);
 
+  // Rejected/withdrawn negotiations are dead — they don't count as overlap.
+  const collisions = (existing ?? []).filter(
+    (use) => use.state !== "REJECTED" && use.end > start && use.start < end,
+  );
+
   return (
     <div className="ws">
       <div className="ws-caption meta">scene track — drag the handles</div>
       <div className="ws-track" ref={track} data-testid="ws-track">
+        {(existing ?? []).map((use, index) => (
+          <span
+            key={index}
+            className={`ws-existing ${use.state}`}
+            style={{ left: left(use.start), width: left(use.end - use.start) }}
+            title={`${use.label} · ${STATE_LABELS[use.state]} · ${use.start}s–${use.end}s`}
+          />
+        ))}
         <div className="ws-window" style={{ left: left(start), width: left(end - start) }} />
         <div
           className="ws-handle"
@@ -81,6 +106,11 @@ export const WindowSelector = ({
           onPointerDown={beginDrag("end")}
         />
       </div>
+      {collisions.length > 0 && (
+        <span className="ws-overlap">
+          overlaps {collisions.map((use) => use.label).join(", ")}
+        </span>
+      )}
 
       <div className="ws-caption meta">
         song track — {formatDuration(audible)} of {formatDuration(songLength)} audible

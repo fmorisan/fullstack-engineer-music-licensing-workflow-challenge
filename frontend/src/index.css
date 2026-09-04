@@ -252,3 +252,7 @@ button.demo:hover { color: var(--text); }
 /* Song selection cards */
 .song-card .media-thumb { max-width: none; height: 110px; }
 .song-card audio { width: 100%; margin-top: 4px; }
+
+/* Notification rows are links now */
+.bell-menu a.notif { text-decoration: none; color: inherit; }
+.notif .what { font-size: 13px; }

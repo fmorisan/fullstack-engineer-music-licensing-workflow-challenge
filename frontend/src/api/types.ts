@@ -68,6 +68,8 @@ export interface SongHit {
   length_seconds: number;
   box_art_key: string | null;
   audio_preview_key: string | null;
+  /** When the song entered the catalog (absent on pre-upgrade docs). */
+  created_at?: string | null;
 }
 
 export interface License {

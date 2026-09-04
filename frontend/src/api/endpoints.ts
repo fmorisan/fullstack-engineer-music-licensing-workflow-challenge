@@ -55,6 +55,12 @@ export const songs = {
     api.get<{ total: number; hits: SongHit[] }>(
       `/songs/search?q=${encodeURIComponent(q)}`,
     ),
+  /** Newest-first catalog slice for pre-search suggestions. */
+  newest: (size = 8) =>
+    api.get<{ total: number; hits: SongHit[] }>(`/songs/newest?size=${size}`),
+  /** Queries ranked by search volume, for trending chips. */
+  hotQueries: (limit = 8) =>
+    api.get<{ query: string; score: number }[]>(`/songs/hot-queries?limit=${limit}`),
 };
 
 // ── Licenses ─────────────────────────────────────────────────────────────────

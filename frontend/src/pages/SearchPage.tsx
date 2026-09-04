@@ -35,6 +35,17 @@ export const SearchPage = () => {
     enabled: debounced.length > 0,
   });
 
+  // Pre-search suggestions: trending queries by volume + the freshest
+  // additions. Server-side cached, so they're cheap enough to always fetch.
+  const newest = useQuery({
+    queryKey: ["songs", "newest"],
+    queryFn: () => songs.newest(),
+  });
+  const hot = useQuery({
+    queryKey: ["songs", "hot-queries"],
+    queryFn: () => songs.hotQueries(),
+  });
+
   const myMovies = useQuery({
     queryKey: ["movies"],
     queryFn: movies.list,
@@ -97,24 +108,57 @@ export const SearchPage = () => {
         </div>
       )}
 
-      <div className="grid">
-        {search.data?.hits.map((hit) => (
-          <div key={hit.song_id} className="card">
-            <h3>{hit.title}</h3>
-            <p className="meta">{hit.author}</p>
-            <p className="meta">{formatDuration(hit.length_seconds)}</p>
-            <div className="spacer" />
-            <button
-              type="button"
-              className="primary"
-              disabled={!target || target.sceneNumber === -1}
-              onClick={() => setOffering(hit)}
-            >
-              License this song
-            </button>
+      {!debounced && (hot.data?.length ?? 0) > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <p className="meta" style={{ margin: 0 }}>Trending searches</p>
+          <div className="row">
+            {hot.data?.map((entry) => (
+              <button
+                key={entry.query}
+                type="button"
+                onClick={() => setQuery(entry.query)}
+              >
+                {entry.query}
+              </button>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {!debounced && (
+        <>
+          <h3 style={{ marginTop: 0 }}>Fresh in the catalog</h3>
+          <div className="grid">
+            {newest.data?.hits.map((hit) => (
+              <SongCard
+                key={hit.song_id}
+                hit={hit}
+                disabled={!target || target.sceneNumber === -1}
+                onLicense={() => setOffering(hit)}
+              />
+            ))}
+          </div>
+          {newest.data && newest.data.hits.length === 0 && (
+            <div className="empty-state">
+              <h3>The catalog is warming up</h3>
+              <p>Labels' new publications land here within seconds of being indexed.</p>
+            </div>
+          )}
+        </>
+      )}
+
+      {debounced && (
+        <div className="grid">
+          {search.data?.hits.map((hit) => (
+            <SongCard
+              key={hit.song_id}
+              hit={hit}
+              disabled={!target || target.sceneNumber === -1}
+              onLicense={() => setOffering(hit)}
+            />
+          ))}
+        </div>
+      )}
 
       {offering && target && target.sceneNumber !== -1 && (
         <OfferModal
@@ -126,6 +170,29 @@ export const SearchPage = () => {
     </div>
   );
 };
+
+const SongCard = ({
+  hit,
+  disabled,
+  onLicense,
+}: {
+  hit: SongHit;
+  disabled: boolean;
+  onLicense: () => void;
+}) => (
+  <div className="card">
+    <h3>{hit.title}</h3>
+    <p className="meta">{hit.author}</p>
+    <p className="meta">
+      {formatDuration(hit.length_seconds)}
+      {hit.created_at && ` · added ${new Date(hit.created_at).toLocaleDateString()}`}
+    </p>
+    <div className="spacer" />
+    <button type="button" className="primary" disabled={disabled} onClick={onLicense}>
+      License this song
+    </button>
+  </div>
+);
 
 const ScenePicker = ({
   target,

@@ -6,6 +6,7 @@ import { useLocation } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { licenses, movies, songs } from "../api/endpoints";
 import { ApiError } from "../api/client";
+import { WindowSelector } from "../components/WindowSelector";
 import { formatDuration, formatFee, type SongHit } from "../api/types";
 
 interface OfferTarget {
@@ -175,6 +176,13 @@ const OfferModal = ({
   const [end, setEnd] = useState(String(Math.min(30, target.sceneEndTime)));
   const [error, setError] = useState<string | null>(null);
 
+  // The selector owns integer windows; the inputs stay the source of truth
+  // for typing exact values.
+  const setWindow = (nextStart: number, nextEnd: number) => {
+    setStart(String(nextStart));
+    setEnd(String(nextEnd));
+  };
+
   const create = useMutation({
     mutationFn: () =>
       licenses.create({
@@ -206,6 +214,14 @@ const OfferModal = ({
         <p className="meta">
           Scene {target.sceneNumber} · playback window within the scene (0–{maxWindow}s)
         </p>
+
+        <WindowSelector
+          maxWindow={maxWindow}
+          songLength={song.length_seconds}
+          start={Number(start)}
+          end={Number(end)}
+          onChange={setWindow}
+        />
 
         <label>
           Offer fee (USD)
@@ -246,7 +262,7 @@ const OfferModal = ({
           </label>
         </div>
         {error && <p className="error">{error}</p>}
-        <p className="hint">Your offer: {formatFee(Math.round(Number(fee || 0) * 100))}</p>
+        <p className="hint">Your offer: {formatFee(Math.round(Number(fee || "0") * 100))}</p>
 
         <div className="row" style={{ justifyContent: "flex-end" }}>
           <button type="button" className="ghost" onClick={onClose}>

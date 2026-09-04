@@ -35,6 +35,14 @@ pub fn build_router(state: AppState, auth: JwtAuth) -> Router {
             "/licenses/{id}",
             get(handlers::licenses::detail).put(handlers::licenses::transition),
         )
+        .route(
+            "/licenses/movies/{movie_id}",
+            get(handlers::licenses::movie_context),
+        )
+        .route(
+            "/licenses/movies/{movie_id}/relationship",
+            get(handlers::licenses::movie_relationship),
+        )
         .route("/licenses/stream", get(handlers::stream::stream))
         .layer(axum::middleware::from_fn_with_state(auth, require_auth));
 

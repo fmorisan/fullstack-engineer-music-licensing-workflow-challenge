@@ -243,6 +243,77 @@ pub async fn list(
     Ok(Json(rows.iter().map(LicenseRow::to_dto).collect()))
 }
 
+/// Does the calling label hold at least one license on this movie?
+async fn label_is_party(state: &AppState, label_id: Uuid, movie_id: Uuid) -> ApiResult<bool> {
+    let party = sqlx::query_scalar!(
+        r#"SELECT EXISTS(
+            SELECT 1 FROM licenses WHERE label_id = $1 AND movie_id = $2
+        ) AS "exists!""#,
+        label_id,
+        movie_id,
+    )
+    .fetch_one(state.pool())
+    .await?;
+    Ok(party)
+}
+
+/// `GET /licenses/movies/:movie_id` — every license on a movie (all
+/// labels, all scenes), for labels party to at least one of them. The
+/// negotiation context behind accept / counter / reject decisions.
+///
+/// # Errors
+///
+/// `403` for non-label roles; `404` when the label holds no license on
+/// the movie (no existence leak).
+pub async fn movie_context(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthenticatedUser>,
+    Path(movie_id): Path<Uuid>,
+) -> ApiResult<Json<Vec<LicenseDto>>> {
+    user.ensure_role(licensing_core::Role::Label)
+        .map_err(|_| ApiError::Forbidden)?;
+    let label_id = user.org_id.ok_or(ApiError::Forbidden)?;
+    if !label_is_party(&state, label_id, movie_id).await? {
+        return Err(ApiError::NotFound);
+    }
+    let rows = sqlx::query_as!(
+        LicenseRow,
+        "SELECT id, movie_id, scene_number, song_id, studio_id, label_id,
+                studio_user_id, state, license_fee_cents, start_time_seconds,
+                end_time_seconds, created_at, updated_at
+         FROM licenses
+         WHERE movie_id = $1
+         ORDER BY scene_number ASC, created_at ASC",
+        movie_id,
+    )
+    .fetch_all(state.pool())
+    .await?;
+    Ok(Json(rows.iter().map(LicenseRow::to_dto).collect()))
+}
+
+/// `GET /licenses/movies/:movie_id/relationship` — 204 when the calling
+/// label holds at least one license on the movie, 404 otherwise. Called by
+/// movie_service (with the caller's JWT propagated) before serving movie
+/// detail to a label; licenses are this service's record.
+///
+/// # Errors
+///
+/// `403` for non-label roles.
+pub async fn movie_relationship(
+    State(state): State<AppState>,
+    Extension(user): Extension<AuthenticatedUser>,
+    Path(movie_id): Path<Uuid>,
+) -> ApiResult<StatusCode> {
+    user.ensure_role(licensing_core::Role::Label)
+        .map_err(|_| ApiError::Forbidden)?;
+    let label_id = user.org_id.ok_or(ApiError::Forbidden)?;
+    if label_is_party(&state, label_id, movie_id).await? {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Ok(StatusCode::NOT_FOUND)
+    }
+}
+
 /// `PUT /licenses/:id` — apply a negotiation action.
 ///
 /// The outcome is decided by the single authoritative state machine in

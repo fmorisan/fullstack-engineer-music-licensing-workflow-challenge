@@ -41,6 +41,7 @@ services:
         SERVICE: movie_service
     environment:
       DATABASE_URL: postgres://acme:acme_dev_only@postgres:5432/movie_db
+      LICENSE_SERVICE_URL: http://license_service:8105
       S3_ENDPOINT: http://localhost:9000
       S3_ACCESS_KEY: minioadmin
       S3_SECRET_KEY: minioadmin

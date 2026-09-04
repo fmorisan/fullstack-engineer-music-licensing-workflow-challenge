@@ -346,3 +346,136 @@ async fn studios_and_labels_list_their_licenses() {
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn movie_context_shows_all_licenses_to_party_labels_only() {
+    let stubs = Stubs::start().await;
+    let state = setup(&stubs).await;
+    let studio = token(licensing_core::Role::Studio, Some(stubs.studio_org));
+    let label = token(licensing_core::Role::Label, Some(stubs.label_org));
+
+    // Two offers from the studio, one per scene — both for stubs.label_org.
+    for scene in 1..=2 {
+        let (status, body) = req(
+            &state,
+            "POST",
+            "/licenses",
+            &studio,
+            Some(json!({
+                "movie_id": stubs.movie_id.to_string(),
+                "scene_number": scene,
+                "song_id": stubs.song_id.to_string(),
+                "start_time_seconds": 0,
+                "end_time_seconds": 30,
+                "license_fee_cents": 150_000,
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED, "body: {body}");
+    }
+    // A foreign label's license on the same movie (raw row: the song stub
+    // only knows one label; schema contract is pinned elsewhere).
+    sqlx::query(
+        "INSERT INTO licenses (id, movie_id, scene_number, song_id, studio_id, label_id,
+             studio_user_id, state, license_fee_cents, start_time_seconds, end_time_seconds)
+         VALUES ($1, $2, 1, $3, $4, $5, $6, 'OFFER', 90000, 30, 60)",
+    )
+    .bind(uuid::Uuid::now_v7())
+    .bind(stubs.movie_id)
+    .bind(stubs.song_id)
+    .bind(stubs.studio_org)
+    .bind(uuid::Uuid::now_v7())
+    .bind(uuid::Uuid::now_v7())
+    .execute(state.pool())
+    .await
+    .unwrap();
+
+    // Party label: every license on the movie, scene-ordered — including
+    // the other label's row (the negotiation context).
+    let (status, body) = req(
+        &state,
+        "GET",
+        &format!("/licenses/movies/{}", stubs.movie_id),
+        &label,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "body: {body}");
+    let rows = body.as_array().unwrap();
+    assert_eq!(rows.len(), 3, "both scenes plus the foreign row: {body}");
+    assert_eq!(rows[0]["scene_number"], 1);
+
+    // Strangers: no existence leak.
+    let stranger = token(licensing_core::Role::Label, Some(uuid::Uuid::now_v7()));
+    let (status, _) = req(
+        &state,
+        "GET",
+        &format!("/licenses/movies/{}", stubs.movie_id),
+        &stranger,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // Studios use their own list path instead.
+    let (status, _) = req(
+        &state,
+        "GET",
+        &format!("/licenses/movies/{}", stubs.movie_id),
+        &studio,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn relationship_endpoint_answers_for_party_labels() {
+    let stubs = Stubs::start().await;
+    let state = setup(&stubs).await;
+    let studio = token(licensing_core::Role::Studio, Some(stubs.studio_org));
+    let label = token(licensing_core::Role::Label, Some(stubs.label_org));
+
+    // No licenses yet: 404.
+    let (status, _) = req(
+        &state,
+        "GET",
+        &format!("/licenses/movies/{}/relationship", stubs.movie_id),
+        &label,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    let (status, _) = req(
+        &state,
+        "POST",
+        "/licenses",
+        &studio,
+        Some(create_body(&stubs)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Party: 204. Strangers: 404 (movie_service fails closed on it).
+    let (status, _) = req(
+        &state,
+        "GET",
+        &format!("/licenses/movies/{}/relationship", stubs.movie_id),
+        &label,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let stranger = token(licensing_core::Role::Label, Some(uuid::Uuid::now_v7()));
+    let (status, _) = req(
+        &state,
+        "GET",
+        &format!("/licenses/movies/{}/relationship", stubs.movie_id),
+        &stranger,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}

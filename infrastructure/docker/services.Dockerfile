@@ -13,10 +13,13 @@
 #   cargo-chef, whose layer-granular caching recompiled all dependencies on
 #   any manifest change and shared its value only across the (now gone)
 #   per-service builds.
-# - `--no-default-features` compiles platform without the SDK's https
-#   stack, keeping aws-lc-sys (the OOM-prone C/ASM build) out of release
-#   images entirely: binaries only ever pre-sign, which is offline SigV4
-#   math. Tests re-enable it through test-support's dev-dependency edge.
+# - Explicit `-p <services>` selection with `--no-default-features`
+#   compiles platform without the SDK's https stack, keeping aws-lc-sys
+#   (the OOM-prone C/ASM build) out of release images entirely: binaries
+#   only ever pre-sign, which is offline SigV4 math. Tests re-enable it
+#   through test-support's dev-dependency edge. (`--bins` would not do:
+#   workspace-wide selection builds test-support's lib too, and its
+#   sdk-https request unifies the feature back ON for every service.)
 # - Artifacts inside a cache mount do not persist in the layer, so the
 #   binaries are copied out to /out within the same RUN.
 
@@ -33,7 +36,9 @@ ARG BUILD_JOBS=3
 ENV CARGO_BUILD_JOBS=${BUILD_JOBS}
 RUN --mount=type=cache,id=acme-registry,target=/usr/local/cargo/registry \
     --mount=type=cache,id=acme-target,target=/app/target,sharing=locked \
-    cargo build --release --bins --no-default-features \
+    cargo build --release --no-default-features \
+        -p auth_service -p movie_service -p song_service \
+        -p search_service -p license_service -p notification_service \
     && mkdir -p /out \
     && cp target/release/auth_service \
           target/release/movie_service \

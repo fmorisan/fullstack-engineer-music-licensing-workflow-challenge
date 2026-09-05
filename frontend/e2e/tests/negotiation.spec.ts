@@ -104,7 +104,12 @@ test("full negotiation with live notifications and email", async ({ browser }) =
     .getByPlaceholder(/Search the catalog/)
     .fill("turbo");
   await studio.getByRole("heading", { name: "Turbo Killer" }).first().waitFor();
-  await studio.getByRole("button", { name: "License this song" }).first().click();
+  // Scope to the card: fuzzy search also surfaces "Toro y Pampa" for
+  // "turbo", and an unscoped .first() clicks whichever ranks higher.
+  await studio
+    .locator(".card", { hasText: "Turbo Killer" })
+    .getByRole("button", { name: "License this song" })
+    .click();
 
   // Offer modal: drag the window's end handle, then send a distinctive fee.
   await expect(studio.getByText(/License “Turbo Killer”/)).toBeVisible();

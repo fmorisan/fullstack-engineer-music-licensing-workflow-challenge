@@ -71,7 +71,7 @@ spec:
         - name: movie-service
           image: localhost/acme-services:dev
           imagePullPolicy: Never
-          command: ["auth_service"]
+          command: ["movie_service"]
           env:
             - { name: DATABASE_URL, value: "postgres://acme:acme_dev_only@postgres:5432/movie_db" }
             - { name: LICENSE_SERVICE_URL, value: "http://license-service:8105" }
@@ -123,7 +123,7 @@ spec:
         - name: song-service
           image: localhost/acme-services:dev
           imagePullPolicy: Never
-          command: ["movie_service"]
+          command: ["song_service"]
           env:
             - { name: DATABASE_URL, value: "postgres://acme:acme_dev_only@postgres:5432/song_db" }
             - { name: KAFKA_BOOTSTRAP_SERVERS, value: kafka:9092 }
@@ -173,7 +173,7 @@ spec:
         - name: search-service
           image: localhost/acme-services:dev
           imagePullPolicy: Never
-          command: ["song_service"]
+          command: ["search_service"]
           env:
             - { name: KAFKA_BOOTSTRAP_SERVERS, value: kafka:9092 }
             - { name: ELASTICSEARCH_URL, value: http://elasticsearch:9200 }
@@ -221,7 +221,7 @@ spec:
         - name: license-service
           image: localhost/acme-services:dev
           imagePullPolicy: Never
-          command: ["search_service"]
+          command: ["license_service"]
           env:
             - { name: DATABASE_URL, value: "postgres://acme:acme_dev_only@postgres:5432/license_db" }
             - { name: KAFKA_BOOTSTRAP_SERVERS, value: kafka:9092 }
@@ -271,7 +271,7 @@ spec:
         - name: notification-service
           image: localhost/acme-services:dev
           imagePullPolicy: Never
-          command: ["license_service"]
+          command: ["notification_service"]
           env:
             - { name: DATABASE_URL, value: "postgres://acme:acme_dev_only@postgres:5432/notification_db" }
             - { name: KAFKA_BOOTSTRAP_SERVERS, value: kafka:9092 }

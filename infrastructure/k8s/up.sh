@@ -12,7 +12,12 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 NS=acme-licensing
-PODMAN=${PODMAN:-$(command -v podman || echo /opt/podman/bin/podman)}
+# Podman if installed, docker otherwise; explicit error beats a silent
+# fallback to a tool that doesn't exist on this machine.
+if [ -z "${PODMAN:-}" ]; then
+  PODMAN=$(command -v podman || command -v docker || true)
+fi
+[ -n "$PODMAN" ] || { echo "neither podman nor docker found in PATH" >&2; exit 1; }
 FORWARD_DIR=/tmp/acme-k8s
 
 echo "==> minikube"

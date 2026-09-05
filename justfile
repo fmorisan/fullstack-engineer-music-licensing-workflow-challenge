@@ -3,11 +3,10 @@
 
 set dotenv-load
 
-# Compose runner: defaults to podman locally; CI exports COMPOSE="docker compose"
-COMPOSE := env_var_or_default("COMPOSE", "podman compose")
-# Image builder: sequential builds share the cargo-chef cache layer and
-# avoid OOM'ing smaller VMs (parallel compose builds duplicate the cook).
-BUILDER := env_var_or_default("BUILDER", "podman")
+# Container tooling resolves at load time: podman when installed, docker
+# otherwise. Both are overridable: COMPOSE="docker compose" BUILDER=docker.
+COMPOSE := env_var_or_default("COMPOSE", "$(command -v podman >/dev/null 2>&1 && echo 'podman compose' || echo 'docker compose')")
+BUILDER := env_var_or_default("BUILDER", "$(command -v podman >/dev/null 2>&1 && echo podman || echo docker)")
 SERVICES := "auth_service movie_service song_service search_service license_service notification_service"
 COMPOSE_FILE := "infrastructure/docker/compose.yml"
 HOST_OVERRIDES := "-f infrastructure/docker/compose.yml -f infrastructure/docker/compose.host-services.yml"
@@ -22,35 +21,12 @@ default:
 build:
     cargo build --workspace
 
-# Resolve a HEALTHY podman machine socket, restarting the machine when the
-# API socket has been reaped by macOS temp-dir cleanup. Prints nothing when
-# docker is available or podman is unusable.
-# [private]
-_healthy_podman_socket:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    command -v docker >/dev/null 2>&1 && exit 0
-    command -v podman >/dev/null 2>&1 || exit 0
-    sock=$(podman machine inspect 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["ConnectionInfo"]["PodmanSocket"]["Path"])' || true)
-    healthy() { [ -n "$sock" ] && [ -S "$sock" ] && curl -s --unix-socket "$sock" http://localhost/_ping >/dev/null 2>&1; }
-    if ! healthy; then
-        echo "podman API socket unhealthy; restarting the machine..." >&2
-        podman machine stop >/dev/null 2>&1 || true
-        podman machine start >/dev/null 2>&1 || true
-        sock=$(podman machine inspect 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["ConnectionInfo"]["PodmanSocket"]["Path"])' || true)
-        healthy || sock=""
-    fi
-    [ -n "$sock" ] && echo "unix://$sock" || true
-
 # Run all tests, including testcontainer-based integration tests.
-# Resolves (and if needed heals) the podman machine socket automatically.
+# Assumes a working container environment: docker, or a podman machine with
+# DOCKER_HOST exported (the socket-reaping workaround this recipe used to
+# carry was a symptom of build-memory pressure, fixed by the single-build
+# overhaul — see ADR-014).
 test:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    sock="$(just --quiet _healthy_podman_socket)"
-    if [ -n "$sock" ]; then
-        export DOCKER_HOST="$sock"
-    fi
     cargo test --workspace
 
 # Alias of `test` (kept for discoverability of the integration suite)
@@ -129,8 +105,8 @@ frontend-lint:
 _active_compose_files:
     #!/usr/bin/env bash
     set -euo pipefail
-    if docker="$(command -v docker)" 2>/dev/null || docker="$(command -v podman)"; then
-        mode=$("$docker" inspect acme-licensing-kong-1 2>/dev/null | python3 -c 'import json,sys; envs=json.load(sys.stdin)[0]["Config"]["Env"]; print("\n".join(e for e in envs if e.startswith("KONG_DECLARATIVE_CONFIG=")))' || true)
+    if command -v {{ BUILDER }} >/dev/null 2>&1; then
+        mode=$("{{ BUILDER }}" inspect acme-licensing-kong-1 2>/dev/null | python3 -c 'import json,sys; envs=json.load(sys.stdin)[0]["Config"]["Env"]; print("\n".join(e for e in envs if e.startswith("KONG_DECLARATIVE_CONFIG=")))' || true)
         if echo "$mode" | grep -q 'host-dev'; then
             echo "{{ HOST_OVERRIDES }}"
             exit 0
@@ -205,13 +181,10 @@ e2e:
     npx playwright test
 
 # Coverage gate: full test suite with line-coverage floors (ratcheted).
+# Same environment assumption as `test`.
 coverage:
     #!/usr/bin/env bash
     set -euo pipefail
-    sock="$(just --quiet _healthy_podman_socket)"
-    if [ -n "$sock" ]; then
-        export DOCKER_HOST="$sock"
-    fi
     cargo llvm-cov --summary-only --ignore-filename-regex '/main\.rs$' 2>/dev/null \
         | python3 scripts/coverage_gate.py
 
@@ -219,10 +192,6 @@ coverage:
 coverage-html:
     #!/usr/bin/env bash
     set -euo pipefail
-    sock="$(just --quiet _healthy_podman_socket)"
-    if [ -n "$sock" ]; then
-        export DOCKER_HOST="$sock"
-    fi
     cargo llvm-cov --html --output-path target/llvm-cov/html/index.html \
         --ignore-filename-regex '/main\.rs$' 2>/dev/null
     echo "report: target/llvm-cov/html/index.html"

@@ -41,9 +41,7 @@ async function markAllRead(page: Page) {
     await expect(page.locator(".bell-badge")).toHaveCount(0);
   }
   await page.locator(".bell-button").click(); // close
-}
-
-/** Mailpit message bodies, newest first. */
+}/** Mailpit message bodies, newest first. */
 async function mailpitBodies(): Promise<string[]> {
   const response = await fetch("http://localhost:8025/api/v1/messages?limit=50");
   const list = (await response.json()) as {
@@ -74,6 +72,10 @@ test("full negotiation with live notifications and email", async ({ browser }) =
   const studio = await studioContext.newPage();
   await login(studio, STUDIO);
   await expect(studio).toHaveURL(/\/movies$/);
+  // Both inboxes start clean: a stale unread (left by an earlier run that
+  // failed after its notification arrived) would satisfy the badge poll
+  // instantly and route the row click to the previous run's movie.
+  await markAllRead(studio);
 
   // Create a movie with a poster attached at creation time.
   const poster = path.join(os.tmpdir(), "e2e-poster.png");

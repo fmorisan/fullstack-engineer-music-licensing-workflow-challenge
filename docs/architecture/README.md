@@ -18,6 +18,8 @@
 | 11 | [ADR-011](./11-adr-asymmetric-jwts-kong-edge.md) | RS256/JWKS tokens, Kong edge, dual validation |
 | 12 | [ADR-012](./12-adr-token-lifecycle-refresh-sessions.md) | 15-minute access tokens + rotating refresh sessions |
 | 13 | [ADR-013](./13-adr-kubernetes-minikube.md) | Kubernetes (minikube) deployment with port-forward parity |
+| 14 | [ADR-014](./14-adr-shared-image-cache-mounts.md) | One shared service image, incremental cache-mount builds |
+| 15 | [ADR-015](./15-adr-observability-grafana.md) | Prometheus metrics + Grafana dashboard |
 
 ## System Context
 

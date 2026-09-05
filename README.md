@@ -48,6 +48,13 @@ loaded — redeploys are fast). The Playwright e2e suite passes unchanged
 against this deployment. Topology and the port-forward-parity decision:
 [ADR-013](docs/architecture/13-adr-kubernetes-minikube.md).
 
+The k8s deployment includes observability: every service exports
+Prometheus metrics (HTTP per-route, Kafka consumers, outbox, live SSE
+clients), and Grafana ships a provisioned **ACME Licensing — System**
+dashboard at http://localhost:3000 ([ADR-015](docs/architecture/15-adr-observability-grafana.md)).
+Service images build as **one shared image** with incremental cache-mount
+compilation ([ADR-014](docs/architecture/14-adr-shared-image-cache-mounts.md)).
+
 ## Five-minute tour
 
 1. **Studio** (Grace): *Movies* → open a movie. The page opens with an

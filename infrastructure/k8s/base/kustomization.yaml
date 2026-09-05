@@ -1,0 +1,24 @@
+# Kubernetes deployment (minikube) — see ADR-013.
+#
+# One kustomize base applying the whole stack into namespace
+# acme-licensing. Images are pre-built (acme-<service>:dev) and loaded
+# into the cluster with `minikube image load`; the JWT dev keypair rides
+# in the `acme-keys` secret; Kong's declarative config comes from the
+# `kong-config` configmap (rendered with dashed service hostnames).
+#
+#   just k8s-up     # load, apply, wait, port-forward (localhost URLs match compose)
+#   just k8s-down
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: acme-licensing
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - redis.yaml
+  - minio.yaml
+  - kafka.yaml
+  - elasticsearch.yaml
+  - mailpit.yaml
+  - kong.yaml
+  - services.yaml
+  - frontend.yaml

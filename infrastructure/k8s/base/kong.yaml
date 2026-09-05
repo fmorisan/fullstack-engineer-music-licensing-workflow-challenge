@@ -1,0 +1,53 @@
+# Kong: db-less gateway. The declarative config comes from the
+# kong-config configmap (rendered with dashed service hostnames); routing,
+# CORS for http://localhost:5173, and RS256 edge validation are unchanged
+# from the compose stack (ADR-011/ADR-013).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kong
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: kong }
+  template:
+    metadata:
+      labels: { app: kong }
+    spec:
+      containers:
+        - name: kong
+          image: kong:3.9
+          env:
+            - { name: KONG_DATABASE, value: "off" }
+            - { name: KONG_DECLARATIVE_CONFIG, value: /kong/kong.yml }
+            - { name: KONG_PROXY_LISTEN, value: 0.0.0.0:8000 }
+            - { name: KONG_STATUS_LISTEN, value: 0.0.0.0:8100 }
+            - { name: KONG_ADMIN_LISTEN, value: 0.0.0.0:8001 }
+            - { name: KONG_LOG_LEVEL, value: notice }
+          ports:
+            - { containerPort: 8000 }
+            - { containerPort: 8001 }
+            - { containerPort: 8100 }
+          volumeMounts:
+            - { name: config, mountPath: /kong/kong.yml, subPath: kong.yml, readOnly: true }
+          readinessProbe:
+            httpGet: { path: /status/ready, port: 8100 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 24
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+      volumes:
+        - name: config
+          configMap: { name: kong-config }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kong
+spec:
+  selector: { app: kong }
+  ports:
+    - { name: proxy, port: 8000, targetPort: 8000 }
+    - { name: admin, port: 8001, targetPort: 8001 }

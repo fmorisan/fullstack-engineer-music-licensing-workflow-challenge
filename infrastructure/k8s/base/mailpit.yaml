@@ -1,0 +1,36 @@
+# Mailpit: email capture (web + API :8025, SMTP :1025).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailpit
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: mailpit }
+  template:
+    metadata:
+      labels: { app: mailpit }
+    spec:
+      containers:
+        - name: mailpit
+          image: axllent/mailpit:v1.21.8
+          ports:
+            - { containerPort: 8025 }
+            - { containerPort: 1025 }
+          readinessProbe:
+            httpGet: { path: /, port: 8025 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit
+spec:
+  selector: { app: mailpit }
+  ports:
+    - { name: http, port: 8025, targetPort: 8025 }
+    - { name: smtp, port: 1025, targetPort: 1025 }

@@ -1,0 +1,299 @@
+# The six Rust services. Environment mirrors compose.services.yml with
+# dashed service hostnames; the dev JWT keypair mounts from `acme-keys`.
+# Boot ordering is left to Kubernetes: services retry their dependencies
+# (crash → backoff → rejoin), and migrations run at boot.
+#
+# Common shape per service:
+#   Deployment (image acme-<service>:dev, /healthz probes, /keys secret)
+#   Service    (ClusterIP, port 81xx)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: auth-service }
+  template:
+    metadata:
+      labels: { app: auth-service }
+    spec:
+      containers:
+        - name: auth-service
+          image: localhost/acme-auth_service:dev
+          imagePullPolicy: Never
+          env:
+            - { name: DATABASE_URL, value: "postgres://acme:acme_dev_only@postgres:5432/auth_db" }
+            - { name: JWT_PRIVATE_KEY_FILE, value: /keys/private }
+            - { name: PORT, value: "8101" }
+          ports: [{ containerPort: 8101 }]
+          volumeMounts:
+            - { name: keys, mountPath: /keys, readOnly: true }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8101 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8101 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 12
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+      volumes:
+        - name: keys
+          secret: { secretName: acme-keys }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+spec:
+  selector: { app: auth-service }
+  ports: [{ port: 8101, targetPort: 8101 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: movie-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: movie-service }
+  template:
+    metadata:
+      labels: { app: movie-service }
+    spec:
+      containers:
+        - name: movie-service
+          image: localhost/acme-movie_service:dev
+          imagePullPolicy: Never
+          env:
+            - { name: DATABASE_URL, value: "postgres://acme:acme_dev_only@postgres:5432/movie_db" }
+            - { name: LICENSE_SERVICE_URL, value: "http://license-service:8105" }
+            # Presigning is offline math; the URL names the browser-facing
+            # host (served by the localhost port-forward), not a cluster one.
+            - { name: S3_ENDPOINT, value: "http://localhost:9000" }
+            - { name: S3_ACCESS_KEY, value: minioadmin }
+            - { name: S3_SECRET_KEY, value: minioadmin }
+            - { name: JWT_PUBLIC_KEY_FILE, value: /keys/public }
+            - { name: PORT, value: "8102" }
+          ports: [{ containerPort: 8102 }]
+          volumeMounts:
+            - { name: keys, mountPath: /keys, readOnly: true }
+          readinessProbe:
+              httpGet: { path: /healthz, port: 8102 }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8102 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 12
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+      volumes:
+        - name: keys
+          secret: { secretName: acme-keys }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: movie-service
+spec:
+  selector: { app: movie-service }
+  ports: [{ port: 8102, targetPort: 8102 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: song-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: song-service }
+  template:
+    metadata:
+      labels: { app: song-service }
+    spec:
+      containers:
+        - name: song-service
+          image: localhost/acme-song_service:dev
+          imagePullPolicy: Never
+          env:
+            - { name: DATABASE_URL, value: "postgres://acme:acme_dev_only@postgres:5432/song_db" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: kafka:9092 }
+            - { name: S3_ENDPOINT, value: "http://localhost:9000" }
+            - { name: S3_ACCESS_KEY, value: minioadmin }
+            - { name: S3_SECRET_KEY, value: minioadmin }
+            - { name: JWT_PUBLIC_KEY_FILE, value: /keys/public }
+            - { name: PORT, value: "8103" }
+          ports: [{ containerPort: 8103 }]
+          volumeMounts:
+            - { name: keys, mountPath: /keys, readOnly: true }
+          readinessProbe:
+              httpGet: { path: /healthz, port: 8103 }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8103 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 12
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+      volumes:
+        - name: keys
+          secret: { secretName: acme-keys }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: song-service
+spec:
+  selector: { app: song-service }
+  ports: [{ port: 8103, targetPort: 8103 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: search-service }
+  template:
+    metadata:
+      labels: { app: search-service }
+    spec:
+      containers:
+        - name: search-service
+          image: localhost/acme-search_service:dev
+          imagePullPolicy: Never
+          env:
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: kafka:9092 }
+            - { name: ELASTICSEARCH_URL, value: http://elasticsearch:9200 }
+            - { name: REDIS_URL, value: "redis://redis:6379" }
+            - { name: JWT_PUBLIC_KEY_FILE, value: /keys/public }
+            - { name: PORT, value: "8104" }
+          ports: [{ containerPort: 8104 }]
+          volumeMounts:
+            - { name: keys, mountPath: /keys, readOnly: true }
+          readinessProbe:
+              httpGet: { path: /healthz, port: 8104 }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8104 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 12
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+      volumes:
+        - name: keys
+          secret: { secretName: acme-keys }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: search-service
+spec:
+  selector: { app: search-service }
+  ports: [{ port: 8104, targetPort: 8104 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: license-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: license-service }
+  template:
+    metadata:
+      labels: { app: license-service }
+    spec:
+      containers:
+        - name: license-service
+          image: localhost/acme-license_service:dev
+          imagePullPolicy: Never
+          env:
+            - { name: DATABASE_URL, value: "postgres://acme:acme_dev_only@postgres:5432/license_db" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: kafka:9092 }
+            - { name: REDIS_URL, value: "redis://redis:6379" }
+            - { name: MOVIE_SERVICE_URL, value: "http://movie-service:8102" }
+            - { name: SONG_SERVICE_URL, value: "http://song-service:8103" }
+            - { name: JWT_PUBLIC_KEY_FILE, value: /keys/public }
+            - { name: PORT, value: "8105" }
+          ports: [{ containerPort: 8105 }]
+          volumeMounts:
+            - { name: keys, mountPath: /keys, readOnly: true }
+          readinessProbe:
+              httpGet: { path: /healthz, port: 8105 }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8105 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 12
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+      volumes:
+        - name: keys
+          secret: { secretName: acme-keys }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: license-service
+spec:
+  selector: { app: license-service }
+  ports: [{ port: 8105, targetPort: 8105 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: notification-service }
+  template:
+    metadata:
+      labels: { app: notification-service }
+    spec:
+      containers:
+        - name: notification-service
+          image: localhost/acme-notification_service:dev
+          imagePullPolicy: Never
+          env:
+            - { name: DATABASE_URL, value: "postgres://acme:acme_dev_only@postgres:5432/notification_db" }
+            - { name: KAFKA_BOOTSTRAP_SERVERS, value: kafka:9092 }
+            - { name: REDIS_URL, value: "redis://redis:6379" }
+            - { name: MAILPIT_API_URL, value: "http://mailpit:8025/api/v1" }
+            - { name: JWT_PUBLIC_KEY_FILE, value: /keys/public }
+            - { name: PORT, value: "8106" }
+          ports: [{ containerPort: 8106 }]
+          volumeMounts:
+            - { name: keys, mountPath: /keys, readOnly: true }
+          readinessProbe:
+              httpGet: { path: /healthz, port: 8106 }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8106 }
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            failureThreshold: 12
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+      volumes:
+        - name: keys
+          secret: { secretName: acme-keys }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+spec:
+  selector: { app: notification-service }
+  ports: [{ port: 8106, targetPort: 8106 }]

@@ -229,3 +229,21 @@ coverage-html:
     cargo llvm-cov --html --output-path target/llvm-cov/html/index.html \
         --ignore-filename-regex '/main\.rs$' 2>/dev/null
     echo "report: target/llvm-cov/html/index.html"
+
+# Deploy the full stack onto minikube (localhost URLs match compose).
+k8s-up:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if curl -s -o /dev/null http://localhost:5173/; then
+        echo "something is serving :5173 — stop the compose stack first (just down)" >&2
+        exit 1
+    fi
+    bash infrastructure/k8s/up.sh
+
+# Stop port-forwards and delete the k8s namespace (cluster kept).
+k8s-down:
+    bash infrastructure/k8s/down.sh
+
+# Kubernetes pod status for the stack.
+k8s-ps:
+    kubectl -n acme-licensing get pods -o wide

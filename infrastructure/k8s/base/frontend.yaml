@@ -1,0 +1,35 @@
+# Frontend: the built SPA behind nginx. VITE_API_URL defaults to
+# http://localhost:8080 at build time; the port-forward preserves that
+# URL, so the compose-built image works unchanged (ADR-013).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: frontend }
+  template:
+    metadata:
+      labels: { app: frontend }
+    spec:
+      containers:
+        - name: frontend
+          image: localhost/acme-frontend:dev
+          imagePullPolicy: Never
+          ports: [{ containerPort: 80 }]
+          readinessProbe:
+            httpGet: { path: /, port: 80 }
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+spec:
+  selector: { app: frontend }
+  ports: [{ port: 80, targetPort: 80 }]

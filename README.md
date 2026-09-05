@@ -33,6 +33,21 @@ Demo accounts (from `just seed`):
 | Label   | `warp-label@acme.example` | `label-pass-99`|
 | Admin   | `admin@acme.example`      | `admin-pass-99`|
 
+### Kubernetes (minikube)
+
+The same stack, same localhost URLs, on Kubernetes:
+
+```bash
+just down     # port-forwards reuse the compose ports
+just k8s-up   # apply manifests, side-load images, wait for health, port-forward
+just seed     # demo data through the gateway, exactly as on compose
+```
+
+`just k8s-down` removes the namespace but keeps the cluster (images stay
+loaded — redeploys are fast). The Playwright e2e suite passes unchanged
+against this deployment. Topology and the port-forward-parity decision:
+[ADR-013](docs/architecture/13-adr-kubernetes-minikube.md).
+
 ## Five-minute tour
 
 1. **Studio** (Grace): *Movies* → open a movie. The page opens with an

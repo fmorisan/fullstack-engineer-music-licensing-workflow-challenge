@@ -17,6 +17,7 @@
 | 10 | [ADR-010](./10-adr-testing-strategy.md) | Testing strategy and coverage enforcement |
 | 11 | [ADR-011](./11-adr-asymmetric-jwts-kong-edge.md) | RS256/JWKS tokens, Kong edge, dual validation |
 | 12 | [ADR-012](./12-adr-token-lifecycle-refresh-sessions.md) | 15-minute access tokens + rotating refresh sessions |
+| 13 | [ADR-013](./13-adr-kubernetes-minikube.md) | Kubernetes (minikube) deployment with port-forward parity |
 
 ## System Context
 

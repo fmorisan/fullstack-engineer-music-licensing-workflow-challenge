@@ -61,7 +61,7 @@ kubectl -n "$NS" wait --for=condition=complete job/minio-init --timeout=300s
 
 echo "==> port-forwards (localhost URLs identical to compose)"
 mkdir -p "$FORWARD_DIR"
-for spec in "kong 8080:8000" "frontend 5173:80" "minio 9000:9000" "mailpit 8025:8025"; do
+for spec in "kong 8080:8000" "frontend 5173:80" "minio 9000:9000" "mailpit 8025:8025" "grafana 3000:3000"; do
   set -- $spec
   svc=$1; mapping=$2
   if [ -f "$FORWARD_DIR/$svc.pid" ] && kill -0 "$(cat "$FORWARD_DIR/$svc.pid")" 2>/dev/null; then
@@ -79,5 +79,7 @@ echo "frontend   http://localhost:5173"
 echo "gateway    http://localhost:8080"
 echo "mailpit    http://localhost:8025"
 echo "minio      http://localhost:9001 (console; forward it if needed)"
+echo "grafana    http://localhost:3000 (ACME Licensing — System dashboard)"
+echo "prometheus svc/prometheus:9090 (forward it if needed)"
 echo
 echo "next: just seed   # demo data through the gateway"

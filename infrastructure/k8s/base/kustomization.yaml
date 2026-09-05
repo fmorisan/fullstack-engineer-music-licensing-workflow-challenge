@@ -22,3 +22,4 @@ resources:
   - kong.yaml
   - services.yaml
   - frontend.yaml
+  - monitoring.yaml

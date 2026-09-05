@@ -1,0 +1,344 @@
+# Observability (ADR-014): Prometheus scrapes the six services' /metrics,
+# Kong's status listener, and three lightweight exporters; Grafana ships
+# with a provisioned dashboard ("ACME Licensing — System"). Static
+# targets, no service monitors — right-sized for a dev cluster.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s
+      evaluation_interval: 15s
+    scrape_configs:
+      - job_name: auth-service
+        static_configs: [{ targets: ["auth-service:8101"] }]
+      - job_name: movie-service
+        static_configs: [{ targets: ["movie-service:8102"] }]
+      - job_name: song-service
+        static_configs: [{ targets: ["song-service:8103"] }]
+      - job_name: search-service
+        static_configs: [{ targets: ["search-service:8104"] }]
+      - job_name: license-service
+        static_configs: [{ targets: ["license-service:8105"] }]
+      - job_name: notification-service
+        static_configs: [{ targets: ["notification-service:8106"] }]
+      - job_name: kong
+        static_configs: [{ targets: ["kong:8100"] }]
+      - job_name: redis
+        static_configs: [{ targets: ["redis-exporter:9121"] }]
+      - job_name: postgres
+        static_configs: [{ targets: ["postgres-exporter:9187"] }]
+      - job_name: elasticsearch
+        static_configs: [{ targets: ["elasticsearch-exporter:9114"] }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: prometheus }
+  template:
+    metadata:
+      labels: { app: prometheus }
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v3.4.1
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.retention.time=2d
+          ports: [{ containerPort: 9090 }]
+          volumeMounts:
+            - { name: config, mountPath: /etc/prometheus, readOnly: true }
+          readinessProbe:
+            httpGet: { path: /-/ready, port: 9090 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            limits: { cpu: "1", memory: 1Gi }
+      volumes:
+        - name: config
+          configMap: { name: prometheus-config }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+spec:
+  selector: { app: prometheus }
+  ports: [{ port: 9090, targetPort: 9090 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: redis-exporter }
+  template:
+    metadata:
+      labels: { app: redis-exporter }
+    spec:
+      containers:
+        - name: redis-exporter
+          image: oliver006/redis_exporter:v1.70.0
+          env:
+            - { name: REDIS_ADDR, value: "redis://redis:6379" }
+          ports: [{ containerPort: 9121 }]
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-exporter
+spec:
+  selector: { app: redis-exporter }
+  ports: [{ port: 9121, targetPort: 9121 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: postgres-exporter }
+  template:
+    metadata:
+      labels: { app: postgres-exporter }
+    spec:
+      containers:
+        - name: postgres-exporter
+          image: quay.io/prometheuscommunity/postgres-exporter:v0.17.1
+          env:
+            - { name: DATA_SOURCE_NAME, value: "postgresql://acme:acme_dev_only@postgres:5432/auth_db?sslmode=disable" }
+          ports: [{ containerPort: 9187 }]
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-exporter
+spec:
+  selector: { app: postgres-exporter }
+  ports: [{ port: 9187, targetPort: 9187 }]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elasticsearch-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: elasticsearch-exporter }
+  template:
+    metadata:
+      labels: { app: elasticsearch-exporter }
+    spec:
+      containers:
+        - name: elasticsearch-exporter
+          image: quay.io/prometheuscommunity/elasticsearch-exporter:v1.9.0
+          env:
+            - { name: ES_URI, value: "http://elasticsearch:9200" }
+          ports: [{ containerPort: 9114 }]
+          resources:
+            requests: { cpu: 10m, memory: 64Mi }
+            limits: { cpu: 300m, memory: 256Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch-exporter
+spec:
+  selector: { app: elasticsearch-exporter }
+  ports: [{ port: 9114, targetPort: 9114 }]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+data:
+  provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: acme
+        orgId: 1
+        folder: ""
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-acme
+data:
+  acme-system.json: |
+    {
+      "title": "ACME Licensing — System",
+      "uid": "acme-system",
+      "timezone": "browser",
+      "refresh": "5s",
+      "time": { "from": "now-30m", "to": "now" },
+      "panels": [
+        {
+          "type": "stat", "title": "Services up",
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+          "targets": [{ "expr": "up{job=~\".*-service\"}" }],
+          "fieldConfig": { "defaults": { "mappings": [
+            { "type": "value", "options": { "1": { "text": "up", "color": "green" }, "0": { "text": "down", "color": "red" } } }
+          ], "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } } },
+          "options": { "colorMode": "background", "graphMode": "none" }
+        },
+        {
+          "type": "stat", "title": "Gateway & datastores",
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+          "targets": [{ "expr": "up{job=~\"kong|redis|postgres|elasticsearch\"}" }],
+          "fieldConfig": { "defaults": { "mappings": [
+            { "type": "value", "options": { "1": { "text": "up", "color": "green" }, "0": { "text": "down", "color": "red" } } }
+          ], "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] } } },
+          "options": { "colorMode": "background", "graphMode": "none" }
+        },
+        {
+          "type": "stat", "title": "SSE clients connected",
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+          "targets": [{ "expr": "sum(sse_connected) by (stream)" }]
+        },
+        {
+          "type": "stat", "title": "Consumer rebuilds (zombie guard)",
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+          "targets": [{ "expr": "sum(consumer_rebuilds_total) by (reason)" }],
+          "description": "Non-zero means a consumer lost its Kafka group and self-rebuilt."
+        },
+        {
+          "type": "timeseries", "title": "Request rate by service",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+          "targets": [{ "expr": "sum(rate(http_requests_total[1m])) by (job)", "legendFormat": "{{job}}" }],
+          "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10 } } }
+        },
+        {
+          "type": "timeseries", "title": "p95 request latency by service",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+          "targets": [{ "expr": "histogram_quantile(0.95, sum by (job, le) (rate(http_request_duration_seconds_bucket[5m])))", "legendFormat": "{{job}}" }],
+          "fieldConfig": { "defaults": { "unit": "s", "custom": { "fillOpacity": 10 } } }
+        },
+        {
+          "type": "timeseries", "title": "5xx responses",
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 12 },
+          "targets": [{ "expr": "sum(rate(http_requests_total{status=~\"5..\"}[2m])) by (job)", "legendFormat": "{{job}}" }],
+          "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 20, "drawStyle": "bars" } } }
+        },
+        {
+          "type": "timeseries", "title": "Kafka events consumed / outbox published",
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 12 },
+          "targets": [
+            { "expr": "sum(rate(events_consumed_total[2m])) by (group)", "legendFormat": "consumed: {{group}}" },
+            { "expr": "sum(rate(outbox_published_total[2m]))", "legendFormat": "outbox published" }
+          ],
+          "fieldConfig": { "defaults": { "unit": "ops", "custom": { "fillOpacity": 10 } } }
+        },
+        {
+          "type": "timeseries", "title": "Kong edge traffic by route",
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
+          "targets": [{ "expr": "sum(rate(kong_http_requests_total[2m])) by (route)", "legendFormat": "{{route}}" }],
+          "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10 } } }
+        },
+        {
+          "type": "timeseries", "title": "Redis — memory & command rate",
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 20 },
+          "targets": [
+            { "expr": "redis_memory_used_bytes", "legendFormat": "memory used" },
+            { "expr": "rate(redis_commands_processed_total[1m])", "legendFormat": "commands/s" }
+          ],
+          "fieldConfig": { "defaults": { "custom": { "fillOpacity": 10 } } }
+        },
+        {
+          "type": "timeseries", "title": "Postgres — backend connections",
+          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 20 },
+          "targets": [{ "expr": "sum(pg_stat_database_numbackends) by (datname)", "legendFormat": "{{datname}}" }],
+          "fieldConfig": { "defaults": { "custom": { "fillOpacity": 20, "drawStyle": "bars" } } }
+        },
+        {
+          "type": "timeseries", "title": "ElasticSearch — indexed songs",
+          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 20 },
+          "targets": [{ "expr": "elasticsearch_indices_docs_count", "legendFormat": "documents" }],
+          "fieldConfig": { "defaults": { "custom": { "fillOpacity": 10, "stepAfter": true } } }
+        }
+      ],
+      "schemaVersion": 39,
+      "version": 1
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: grafana }
+  template:
+    metadata:
+      labels: { app: grafana }
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:11.6.0
+          env:
+            - { name: GF_SECURITY_ADMIN_USER, value: admin }
+            - { name: GF_SECURITY_ADMIN_PASSWORD, value: acme }
+            - { name: GF_AUTH_ANONYMOUS_ENABLED, value: "true" }
+            - { name: GF_AUTH_ANONYMOUS_ORG_ROLE, value: Admin }
+          ports: [{ containerPort: 3000 }]
+          volumeMounts:
+            - { name: datasources, mountPath: /etc/grafana/provisioning/datasources, readOnly: true }
+            - { name: dashboard-provider, mountPath: /etc/grafana/provisioning/dashboards, readOnly: true }
+            - { name: dashboard, mountPath: /var/lib/grafana/dashboards, readOnly: true }
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3000 }
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: "1", memory: 512Mi }
+      volumes:
+        - name: datasources
+          configMap: { name: grafana-datasources }
+        - name: dashboard-provider
+          configMap: { name: grafana-dashboard-provider }
+        - name: dashboard
+          configMap: { name: grafana-dashboard-acme }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+spec:
+  selector: { app: grafana }
+  ports: [{ port: 3000, targetPort: 3000 }]

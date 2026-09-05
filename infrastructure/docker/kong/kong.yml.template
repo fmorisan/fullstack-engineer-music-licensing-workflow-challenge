@@ -132,3 +132,7 @@ plugins:
       credentials: true
       max_age: 3600
       preflight_continue: false
+
+  # Edge metrics on the status listener (:8100/metrics) — per-route traffic
+  # and latencies land in Prometheus alongside the services' own series.
+  - name: prometheus

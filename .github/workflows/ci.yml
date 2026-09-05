@@ -26,7 +26,10 @@ jobs:
         # also need Docker, which ubuntu-latest provides.
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake g++ libssl-dev pkg-config
+          # libcurl headers: librdkafka 2.11-2.14 (rdkafka-sys 4.10 in our lockfile) includes
+          # curl/curl.h unconditionally in CMake builds (upstream #5136, fixed in 2.15);
+          # the rust docker images ship them via buildpack-deps, ubuntu runners do not.
+          sudo apt-get install -y --no-install-recommends cmake g++ libssl-dev pkg-config libcurl4-openssl-dev
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -56,7 +59,10 @@ jobs:
       - name: Install native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake g++ libssl-dev pkg-config
+          # libcurl headers: librdkafka 2.11-2.14 (rdkafka-sys 4.10 in our lockfile) includes
+          # curl/curl.h unconditionally in CMake builds (upstream #5136, fixed in 2.15);
+          # the rust docker images ship them via buildpack-deps, ubuntu runners do not.
+          sudo apt-get install -y --no-install-recommends cmake g++ libssl-dev pkg-config libcurl4-openssl-dev
 
       - uses: dtolnay/rust-toolchain@stable
         with:

@@ -20,6 +20,7 @@
 | 13 | [ADR-013](./13-adr-kubernetes-minikube.md) | Kubernetes (minikube) deployment with port-forward parity |
 | 14 | [ADR-014](./14-adr-shared-image-cache-mounts.md) | One shared service image, incremental cache-mount builds |
 | 15 | [ADR-015](./15-adr-observability-grafana.md) | Prometheus metrics + Grafana dashboard |
+| 16 | [ADR-016](./16-adr-production-posture.md) | Production posture: S3/CloudFront, RDS, self-hosted statefuls, deploy-repo GitOps |
 
 ## System Context
 

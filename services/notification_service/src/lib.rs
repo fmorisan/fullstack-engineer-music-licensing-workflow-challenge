@@ -33,10 +33,14 @@ pub fn build_router(state: AppState, auth: JwtAuth) -> Router {
         .route("/notifications/read-all", put(handlers::mark_all_read))
         .route("/notifications/{id}/read", put(handlers::mark_read))
         .route("/notifications/stream", get(handlers::stream))
-        .layer(axum::middleware::from_fn_with_state(auth, require_auth));
+        .layer(axum::middleware::from_fn_with_state(auth, require_auth))
+        .layer(axum::middleware::from_fn(
+            platform::metrics::http_middleware,
+        ));
 
     Router::new()
         .route("/healthz", get(healthz))
+        .route("/metrics", get(platform::metrics::render))
         .merge(protected)
         .with_state(state)
 }
@@ -72,6 +76,7 @@ pub async fn run(config: config::Config) -> anyhow::Result<()> {
                 Ok(consumer) => consumer,
                 Err(err) => {
                     tracing::error!(%err, "consumer build failed; retrying in 5s");
+                    platform::metrics::record_consumer_rebuild("build-failed");
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                     continue;
                 }
@@ -85,6 +90,7 @@ pub async fn run(config: config::Config) -> anyhow::Result<()> {
             .await
             {
                 tracing::error!(%err, "notification consumer stopped; rebuilding in 5s");
+                platform::metrics::record_consumer_rebuild("zombie-guard");
             }
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         }

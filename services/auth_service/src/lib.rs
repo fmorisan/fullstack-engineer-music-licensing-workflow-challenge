@@ -36,6 +36,9 @@ pub fn build_router(state: AppState) -> Router {
         .layer(axum::middleware::from_fn_with_state(
             JwtAuth::from_public_key_pem(state.signing().public_pem.clone()),
             require_auth,
+        ))
+        .layer(axum::middleware::from_fn(
+            platform::metrics::http_middleware,
         ));
 
     Router::new()
@@ -45,6 +48,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/auth/logout", post(handlers::refresh::logout))
         .route("/.well-known/jwks.json", get(handlers::auth::jwks))
         .route("/healthz", get(healthz))
+        .route("/metrics", get(platform::metrics::render))
         .merge(protected)
         .with_state(state)
 }

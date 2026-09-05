@@ -39,10 +39,14 @@ pub fn build_router(state: AppState, auth: JwtAuth) -> Router {
             "/songs/{id}/audio_preview",
             put(handlers::media::audio_preview),
         )
-        .layer(axum::middleware::from_fn_with_state(auth, require_auth));
+        .layer(axum::middleware::from_fn_with_state(auth, require_auth))
+        .layer(axum::middleware::from_fn(
+            platform::metrics::http_middleware,
+        ));
 
     Router::new()
         .route("/healthz", get(healthz))
+        .route("/metrics", get(platform::metrics::render))
         .merge(protected)
         .with_state(state)
 }

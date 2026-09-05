@@ -192,6 +192,14 @@ pub async fn stream(
             Err(_lagged) => None,
         });
 
+    // Live-connection gauge: the guard rides the stream and decrements
+    // when the client disconnects.
+    let connection = platform::metrics::sse_connection("notifications");
+    let events = events.map(move |event| {
+        let _held = &connection;
+        event
+    });
+
     Ok(Sse::new(events).keep_alive(
         KeepAlive::new()
             .interval(std::time::Duration::from_secs(15))

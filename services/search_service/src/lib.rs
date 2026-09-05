@@ -29,10 +29,14 @@ pub fn build_router(state: AppState, auth: JwtAuth) -> Router {
         .route("/songs/search", get(handlers::search))
         .route("/songs/newest", get(handlers::newest))
         .route("/songs/hot-queries", get(handlers::hot_queries))
-        .layer(axum::middleware::from_fn_with_state(auth, require_auth));
+        .layer(axum::middleware::from_fn_with_state(auth, require_auth))
+        .layer(axum::middleware::from_fn(
+            platform::metrics::http_middleware,
+        ));
 
     Router::new()
         .route("/healthz", get(healthz))
+        .route("/metrics", get(platform::metrics::render))
         .merge(protected)
         .with_state(state)
 }
@@ -62,12 +66,14 @@ pub async fn run(config: config::Config) -> anyhow::Result<()> {
                 Ok(consumer) => consumer,
                 Err(err) => {
                     tracing::error!(%err, "indexer consumer build failed; retrying in 5s");
+                    platform::metrics::record_consumer_rebuild("build-failed");
                     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                     continue;
                 }
             };
             if let Err(err) = indexer::run(consumer, indexer_es.clone()).await {
                 tracing::error!(%err, "indexer stopped; rebuilding in 5s");
+                platform::metrics::record_consumer_rebuild("zombie-guard");
             }
             tokio::time::sleep(std::time::Duration::from_secs(5)).await;
         }

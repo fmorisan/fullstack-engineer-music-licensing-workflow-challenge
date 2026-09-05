@@ -38,14 +38,13 @@ kubectl -n "$NS" create configmap kong-config \
 echo "==> applying manifests"
 kubectl apply -k infrastructure/k8s/base
 
-echo "==> loading images (one-time per cluster; a few minutes)"
+echo "==> loading images"
 # minikube's image loader misses the podman store on this setup, so the
 # images travel explicitly: podman save → ctr import in the VM. Names are
 # fully qualified (localhost/…) and the manifests pin imagePullPolicy:
-# Never, so nothing ever tries a registry.
-for image in \
-  auth_service movie_service song_service search_service license_service \
-  notification_service frontend; do
+# Never, so nothing ever tries a registry. One services image carries all
+# six binaries (deployments select via command:).
+for image in services frontend; do
   echo "    acme-${image}:dev"
   tar=/tmp/acme-${image}.tar
   "$PODMAN" save -q -o "$tar" "localhost/acme-${image}:dev"

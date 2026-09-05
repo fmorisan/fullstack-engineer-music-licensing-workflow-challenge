@@ -20,8 +20,9 @@ spec:
     spec:
       containers:
         - name: auth-service
-          image: localhost/acme-auth_service:dev
+          image: localhost/acme-services:dev
           imagePullPolicy: Never
+          command: ["auth_service"]
           env:
             - { name: DATABASE_URL, value: "postgres://acme:acme_dev_only@postgres:5432/auth_db" }
             - { name: JWT_PRIVATE_KEY_FILE, value: /keys/private }
@@ -68,8 +69,9 @@ spec:
     spec:
       containers:
         - name: movie-service
-          image: localhost/acme-movie_service:dev
+          image: localhost/acme-services:dev
           imagePullPolicy: Never
+          command: ["auth_service"]
           env:
             - { name: DATABASE_URL, value: "postgres://acme:acme_dev_only@postgres:5432/movie_db" }
             - { name: LICENSE_SERVICE_URL, value: "http://license-service:8105" }
@@ -119,8 +121,9 @@ spec:
     spec:
       containers:
         - name: song-service
-          image: localhost/acme-song_service:dev
+          image: localhost/acme-services:dev
           imagePullPolicy: Never
+          command: ["movie_service"]
           env:
             - { name: DATABASE_URL, value: "postgres://acme:acme_dev_only@postgres:5432/song_db" }
             - { name: KAFKA_BOOTSTRAP_SERVERS, value: kafka:9092 }
@@ -168,8 +171,9 @@ spec:
     spec:
       containers:
         - name: search-service
-          image: localhost/acme-search_service:dev
+          image: localhost/acme-services:dev
           imagePullPolicy: Never
+          command: ["song_service"]
           env:
             - { name: KAFKA_BOOTSTRAP_SERVERS, value: kafka:9092 }
             - { name: ELASTICSEARCH_URL, value: http://elasticsearch:9200 }
@@ -215,8 +219,9 @@ spec:
     spec:
       containers:
         - name: license-service
-          image: localhost/acme-license_service:dev
+          image: localhost/acme-services:dev
           imagePullPolicy: Never
+          command: ["search_service"]
           env:
             - { name: DATABASE_URL, value: "postgres://acme:acme_dev_only@postgres:5432/license_db" }
             - { name: KAFKA_BOOTSTRAP_SERVERS, value: kafka:9092 }
@@ -264,8 +269,9 @@ spec:
     spec:
       containers:
         - name: notification-service
-          image: localhost/acme-notification_service:dev
+          image: localhost/acme-services:dev
           imagePullPolicy: Never
+          command: ["license_service"]
           env:
             - { name: DATABASE_URL, value: "postgres://acme:acme_dev_only@postgres:5432/notification_db" }
             - { name: KAFKA_BOOTSTRAP_SERVERS, value: kafka:9092 }

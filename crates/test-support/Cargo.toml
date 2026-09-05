@@ -10,7 +10,9 @@ workspace = true
 
 [dependencies]
 licensing-core = { workspace = true }
-platform = { workspace = true }
+# Bucket fixtures dial MinIO over the SDK, so tests opt back into its
+# https stack (aws-lc-rs) — dev/test builds only, never release images.
+platform = { workspace = true, features = ["sdk-https"] }
 tokio = { workspace = true }
 sqlx = { workspace = true }
 testcontainers = { workspace = true }

@@ -29,6 +29,14 @@ chrono = { workspace = true }
 redis = { workspace = true }
 tokio-stream = { workspace = true }
 
+[features]
+# The SDK's HTTPS stack (rustls via aws-lc-rs) is needed only by tests —
+# bucket fixtures dial MinIO. Release images build --no-default-features:
+# presigning is offline SigV4 math, and aws-lc-sys is the slow, OOM-prone
+# C/ASM build this keeps out of image compilation entirely.
+default = ["sdk-https"]
+sdk-https = ["aws-config/rustls"]
+
 [dev-dependencies]
 test-support = { workspace = true }
 tower = { workspace = true }

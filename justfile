@@ -142,11 +142,8 @@ _active_compose_files:
 images:
     #!/usr/bin/env bash
     set -euo pipefail
-    for svc in {{ SERVICES }}; do
-        echo "==> image acme-$svc:dev"
-        {{ BUILDER }} build -f infrastructure/docker/services.Dockerfile \
-            --build-arg SERVICE="$svc" -t "acme-$svc:dev" .
-    done
+    echo "==> image acme-services:dev (six binaries, one build)"
+    {{ BUILDER }} build -f infrastructure/docker/services.Dockerfile -t acme-services:dev .
     echo "==> image acme-frontend:dev"
     {{ BUILDER }} build -f infrastructure/docker/frontend.Dockerfile -t acme-frontend:dev .
 

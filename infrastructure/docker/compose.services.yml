@@ -10,12 +10,8 @@
 
 services:
   auth_service:
-    image: acme-auth_service:dev
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/services.Dockerfile
-      args:
-        SERVICE: auth_service
+    image: acme-services:dev
+    command: ["auth_service"]
     environment:
       DATABASE_URL: postgres://acme:acme_dev_only@postgres:5432/auth_db
       JWT_PRIVATE_KEY_FILE: /keys/dev-auth-private.pem
@@ -33,12 +29,8 @@ services:
     networks: [acme]
 
   movie_service:
-    image: acme-movie_service:dev
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/services.Dockerfile
-      args:
-        SERVICE: movie_service
+    image: acme-services:dev
+    command: ["movie_service"]
     environment:
       DATABASE_URL: postgres://acme:acme_dev_only@postgres:5432/movie_db
       LICENSE_SERVICE_URL: http://license_service:8105
@@ -62,12 +54,8 @@ services:
     networks: [acme]
 
   song_service:
-    image: acme-song_service:dev
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/services.Dockerfile
-      args:
-        SERVICE: song_service
+    image: acme-services:dev
+    command: ["song_service"]
     environment:
       DATABASE_URL: postgres://acme:acme_dev_only@postgres:5432/song_db
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
@@ -93,12 +81,8 @@ services:
     networks: [acme]
 
   search_service:
-    image: acme-search_service:dev
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/services.Dockerfile
-      args:
-        SERVICE: search_service
+    image: acme-services:dev
+    command: ["search_service"]
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       ELASTICSEARCH_URL: http://elasticsearch:9200
@@ -122,12 +106,8 @@ services:
     networks: [acme]
 
   license_service:
-    image: acme-license_service:dev
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/services.Dockerfile
-      args:
-        SERVICE: license_service
+    image: acme-services:dev
+    command: ["license_service"]
     environment:
       DATABASE_URL: postgres://acme:acme_dev_only@postgres:5432/license_db
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
@@ -157,12 +137,8 @@ services:
     networks: [acme]
 
   notification_service:
-    image: acme-notification_service:dev
-    build:
-      context: ../..
-      dockerfile: infrastructure/docker/services.Dockerfile
-      args:
-        SERVICE: notification_service
+    image: acme-services:dev
+    command: ["notification_service"]
     environment:
       DATABASE_URL: postgres://acme:acme_dev_only@postgres:5432/notification_db
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092

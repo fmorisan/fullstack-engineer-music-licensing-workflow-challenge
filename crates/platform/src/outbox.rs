@@ -150,6 +150,7 @@ impl OutboxRelay {
         }
 
         tx.commit().await?;
+        crate::metrics::record_outbox_published(rows.len() as u64);
         Ok(rows.len())
     }
 

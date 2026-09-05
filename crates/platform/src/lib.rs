@@ -13,6 +13,7 @@ pub mod auth;
 pub mod jwt;
 pub mod kafka;
 pub mod media;
+pub mod metrics;
 pub mod outbox;
 pub mod pubsub;
 

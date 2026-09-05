@@ -36,6 +36,10 @@ hyper-util = { version = "0.1", features = ["tokio"] }
 http-body-util = "0.1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
+# Observability
+metrics = "0.24"
+metrics-exporter-prometheus = "0.17"
+
 # Persistence / security
 sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "migrate"] }
 jsonwebtoken = "9"

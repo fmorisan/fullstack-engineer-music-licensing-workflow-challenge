@@ -82,6 +82,7 @@ pub struct ConsumedEvent {
 ///
 /// Auto-commits offsets (at-least-once); consumers must be idempotent.
 pub struct EventConsumer {
+    group: String,
     inner: StreamConsumer,
 }
 
@@ -106,7 +107,10 @@ impl EventConsumer {
             .set("session.timeout.ms", "6000")
             .create()?;
         inner.subscribe(topics)?;
-        Ok(Self { inner })
+        Ok(Self {
+            group: group.to_string(),
+            inner,
+        })
     }
 
     /// Await the next message.
@@ -116,6 +120,7 @@ impl EventConsumer {
     /// Propagates consumer errors.
     pub async fn recv(&self) -> Result<ConsumedEvent, rdkafka::error::KafkaError> {
         let message = self.inner.recv().await?;
+        crate::metrics::record_consumed(&self.group);
         Ok(ConsumedEvent {
             key: message.key().map(<[u8]>::to_vec),
             payload: message.payload().map(<[u8]>::to_vec).unwrap_or_default(),

@@ -264,9 +264,12 @@ data:
           "fieldConfig": { "defaults": { "unit": "ops", "custom": { "fillOpacity": 10 } } }
         },
         {
-          "type": "timeseries", "title": "Kong edge traffic by route",
+          "type": "timeseries", "title": "Kong edge — requests & connections",
           "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
-          "targets": [{ "expr": "sum(rate(kong_http_requests_total[2m])) by (route)", "legendFormat": "{{route}}" }],
+          "targets": [
+            { "expr": "sum(rate(kong_nginx_requests_total[2m]))", "legendFormat": "requests/s" },
+            { "expr": "kong_nginx_connections_total{state=\"active\"}", "legendFormat": "active connections" }
+          ],
           "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10 } } }
         },
         {

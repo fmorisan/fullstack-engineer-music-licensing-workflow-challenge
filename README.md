@@ -9,12 +9,12 @@ media uploads, event-driven search, and an NLE-style timeline UI.
 
 ## Quickstart
 
-Requires: a container runtime (tested with podman; Docker works too), `just`,
-Rust 1.96, and Node 22.
+Requires: a container runtime (tested with podman; Docker works too),
+Rust 1.96, and Node 22. `make` orchestrates everything.
 
 ```bash
-just up        # infra + 6 services + frontend, healthchecked, MinIO bootstrapped
-just seed      # demo users, a movie with scenes, a label catalog (idempotent)
+make up        # infra + 6 services + frontend, healthchecked, MinIO bootstrapped
+make seed      # demo users, a movie with scenes, a label catalog (idempotent)
 ```
 
 | What        | Where                                          |
@@ -25,7 +25,7 @@ just seed      # demo users, a movie with scenes, a label catalog (idempotent)
 | Kong admin  | http://localhost:8081                          |
 | MinIO       | http://localhost:9001 (media objects)          |
 
-Demo accounts (from `just seed`):
+Demo accounts (from `make seed`):
 
 | Role    | Email                     | Password       |
 | ------- | ------------------------- | -------------- |
@@ -38,12 +38,12 @@ Demo accounts (from `just seed`):
 The same stack, same localhost URLs, on Kubernetes:
 
 ```bash
-just down     # port-forwards reuse the compose ports
-just k8s-up   # apply manifests, side-load images, wait for health, port-forward
-just seed     # demo data through the gateway, exactly as on compose
+make down     # port-forwards reuse the compose ports
+make k8s-up   # apply manifests, side-load images, wait for health, port-forward
+make seed     # demo data through the gateway, exactly as on compose
 ```
 
-`just k8s-down` removes the namespace but keeps the cluster (images stay
+`make k8s-down` removes the namespace but keeps the cluster (images stay
 loaded — redeploys are fast). The Playwright e2e suite passes unchanged
 against this deployment. Topology and the port-forward-parity decision:
 [ADR-013](docs/architecture/13-adr-kubernetes-minikube.md).
@@ -118,14 +118,14 @@ gateway, auth, outbox, search, SSE, and media decisions).
 - **End-to-end**: one Playwright spec drives the **full negotiation in two
   authenticated browser contexts** — SSE badge movement, notification
   click-through, counter/accept, and Mailpit email assertions
-  (`just e2e`, requires the running stack).
-- **Coverage**: `just coverage` gates the full suite against ratcheted
-  per-crate floors (overall ≥75%, currently 79.9%); `just coverage-html`
+  (`make e2e`, requires the running stack).
+- **Coverage**: `make coverage` gates the full suite against ratcheted
+  per-crate floors (overall ≥75%, currently 79.9%); `make coverage-html`
   produces the detailed report. CI runs the gate on every PR and attaches
   the report as an artifact.
 
-Local gates: `just check` (fmt, clippy -D warnings, tests, build) and
-`just e2e`. CI mirrors them.
+Local gates: `make check` (fmt, clippy -D warnings, tests, build) and
+`make e2e`. CI mirrors them.
 
 ## Key decisions (short version)
 
@@ -163,7 +163,7 @@ frontend/                React 19 + Vite SPA (TanStack Query, React Router) + e2
 infrastructure/docker    compose files, Kong config, service/frontend images
 docs/architecture        system docs + ADRs
 scripts/                 coverage gate
-justfile                 every workflow (up, dev, test, coverage, e2e, seed…)
+Makefile                 every workflow (up, dev, test, coverage, e2e, seed…)
 ```
 
 ---

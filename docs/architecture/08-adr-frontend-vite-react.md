@@ -20,7 +20,7 @@ frontend by mandate.
   compose stack (production-parity).
 - The frontend's `package.json` is the **only** JS/TS toolchain in the repository; there
   is no root package.json, no Turborepo/pnpm workspace at root. Cross-stack orchestration
-  is done by `justfile` targets.
+  is done by `Makefile` targets.
 
 ## Consequences
 

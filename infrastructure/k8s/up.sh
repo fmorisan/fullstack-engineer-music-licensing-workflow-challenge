@@ -7,7 +7,7 @@
 # exactly (frontend :5173, gateway :8080, MinIO :9000, Mailpit :8025).
 #
 # Requires: the compose stack stopped (same localhost ports), images
-# built (`just images`).
+# built (`make images`).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -87,4 +87,4 @@ echo "minio      http://localhost:9001 (console; forward it if needed)"
 echo "grafana    http://localhost:3000 (ACME Licensing — System dashboard)"
 echo "prometheus svc/prometheus:9090 (forward it if needed)"
 echo
-echo "next: just seed   # demo data through the gateway"
+echo "next: make seed   # demo data through the gateway"

@@ -45,7 +45,7 @@ Controller deploys the same policies as CRDs.
    clients may pass `?access_token=` (the platform middleware and Kong both
    accept it).
 5. **Dev keys are committed fixtures** (`infrastructure/docker/keys/`) so
-   compose, `just dev`, and CI are deterministic. Production generates its
+   compose, `make <service>`, and CI are deterministic. Production generates its
    own keypair, stores the private key in a secret manager, and rotates by
    introducing a second key and retiring the old one after token TTLs lapse.
 

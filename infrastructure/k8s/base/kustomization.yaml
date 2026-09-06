@@ -6,8 +6,8 @@
 # in the `acme-keys` secret; Kong's declarative config comes from the
 # `kong-config` configmap (rendered with dashed service hostnames).
 #
-#   just k8s-up     # load, apply, wait, port-forward (localhost URLs match compose)
-#   just k8s-down
+#   make k8s-up     # load, apply, wait, port-forward (localhost URLs match compose)
+#   make k8s-down
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: acme-licensing

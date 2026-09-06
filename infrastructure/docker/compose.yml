@@ -1,6 +1,6 @@
 # Local development stack (ADR index: docs/architecture/README.md).
 #
-# Engine-agnostic compose-spec file: `podman compose` locally (see justfile),
+# Engine-agnostic compose-spec file: `podman compose` locally (see Makefile),
 # `docker compose` in CI. Host ports avoid conflicts with common local tools
 # (postgres on 5433, mailpit SMTP on 1026, gateway on 8080).
 
@@ -65,7 +65,7 @@ services:
       retries: 12
     networks: [acme]
 
-  # One-shot bucket bootstrap; runs via `just up` (compose `run`), not part of
+  # One-shot bucket bootstrap; runs via `make up` (compose `run`), not part of
   # the long-running stack, so `up --wait` doesn't trip on its exit(0).
   minio-init:
     image: minio/mc:latest

@@ -1,6 +1,6 @@
 # Development-only signing keys
 
-These fixtures exist so the local compose stack, `just dev`, and CI are fully
+These fixtures exist so the local compose stack, `make <service>`, and CI are fully
 deterministic with zero bootstrap steps. **They are not secrets.**
 
 - `dev-auth-private.pem` — PKCS#8 private key; `auth_service` signs with it

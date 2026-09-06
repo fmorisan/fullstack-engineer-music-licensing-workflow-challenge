@@ -1,7 +1,7 @@
 # Full-stack overlay: the six Rust services + frontend as containers.
 #
-#   just up          # infra + services + frontend (reviewer experience)
-#   just up-host     # infra only, kong routes to host-run `just dev` services
+#   make up          # infra + services + frontend (reviewer experience)
+#   make up-host     # infra only, kong routes to host-run `make <service>` services
 #
 # Kong uses its base (container-hostname) config here; services talk over
 # the internal network (kafka:29092, postgres:5432, container-name upstreams).
@@ -170,7 +170,7 @@ services:
       context: ../..
       dockerfile: infrastructure/docker/frontend.Dockerfile
     ports:
-      - "5173:80" # matches the Kong CORS origin; conflicts with `just frontend-dev`
+      - "5173:80" # matches the Kong CORS origin; conflicts with `make frontend-dev`
     depends_on:
       kong:
         condition: service_healthy

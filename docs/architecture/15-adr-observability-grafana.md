@@ -39,7 +39,7 @@ their own exporters), and Grafana with provisioned datasource and an
 "ACME Licensing — System" dashboard: service up/down, request rate and p95
 latency by service, 5xx rates, Kafka event flow and outbox publish rate,
 consumer rebuilds, live SSE clients, gateway traffic by route, and
-datastore panels. `just k8s-up` port-forwards Grafana on :3000 with
+datastore panels. `make k8s-up` port-forwards Grafana on :3000 with
 anonymous admin access.
 
 ## Consequences

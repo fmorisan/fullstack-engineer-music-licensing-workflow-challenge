@@ -4,7 +4,7 @@
 
 ## Context
 
-The reviewer experience runs on compose (`just up`), but the challenge's
+The reviewer experience runs on compose (`make up`), but the challenge's
 bonus track asks for Kubernetes literacy, and minikube is available locally.
 The stack has a dozen components (six services, gateway, four stateful
 backing stores, email capture) and one hard constraint inherited from the
@@ -16,7 +16,7 @@ URLs whose host is chosen by `S3_ENDPOINT`.
 ## Decision
 
 One kustomize base (`infrastructure/k8s/base`) deploys the entire stack into
-namespace `acme-licensing`, wrapped by `just k8s-up` / `just k8s-down`.
+namespace `acme-licensing`, wrapped by `make k8s-up` / `make k8s-down`.
 No Helm: the manifests stay directly readable, and there is a single target
 environment.
 
@@ -30,7 +30,7 @@ reaches through the forward (same reasoning as the compose fix for
 browser-unreachable presigned hosts).
 
 **Side-loaded images.** Images are built by the existing compose flow
-(`just images`) and travel into the cluster explicitly:
+(`make images`) and travel into the cluster explicitly:
 `podman save → minikube cp → ctr -n k8s.io images import`, because
 `minikube image load` does not see this podman store. Consequences:
 
@@ -64,7 +64,7 @@ and brokers answer, migrations run at boot, and the consumer zombie-guards
 - The Playwright e2e suite passes against the k8s deployment unchanged —
   same localhost URLs — which is the deployment's acceptance test.
 - Port-forwards bind the same localhost ports as compose: the two modes are
-  mutually exclusive (`just down` first), which `k8s-up` checks.
+  mutually exclusive (`make down` first), which `k8s-up` checks.
 - `k8s-down` deletes the namespace but keeps the cluster: images stay
   loaded, so a redeploy is `kubectl apply` plus seconds, not minutes.
 - Single replicas, single-node brokers, dev credentials and a committed

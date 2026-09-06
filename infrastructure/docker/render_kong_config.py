@@ -24,7 +24,7 @@ def render(rewrite_service_hosts: bool) -> str:
     indented = "\n".join(f"          {line}" for line in public_key.splitlines())
     body = TEMPLATE.read_text().replace("{{RSA_PUBLIC_KEY}}", indented)
     if rewrite_service_hosts:
-        # Point services at the host so Kong can reach `just dev` processes
+        # Point services at the host so Kong can reach `make <service>` processes
         # running outside the container network.
         for service, port in [
             ("auth_service", 8101),

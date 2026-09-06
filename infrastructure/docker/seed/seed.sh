@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Seed demo data through the gateway. Idempotent: safe to re-run.
 #
-#   just seed          # against http://localhost:8080
-#   GATEWAY_URL=... just seed
+#   make seed          # against http://localhost:8080
+#   GATEWAY_URL=... make seed
 #
 # Creates: one studio (ACME Bros Pictures), one label (Warp Records), an
 # admin, a movie with two scenes, and three songs. Leaves licensing open —

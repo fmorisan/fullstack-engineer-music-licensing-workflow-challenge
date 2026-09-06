@@ -22,15 +22,15 @@
 
 ## Build & test commands
 
-- `just check` — full local gate (fmt-check, clippy with `-D warnings`, tests, build)
-- `just dev <service>` — run one service locally (auth 8101 … notification 8106)
-- `just frontend-dev` / `frontend-build` / `frontend-lint` — frontend (only JS/TS in repo)
-- `just up` / `just down` — local compose stack (Phase 1+)
+- `make check` — full local gate (fmt-check, clippy with `-D warnings`, tests, build)
+- `make <service>` — run one service locally (auth 8101 … notification 8106)
+- `make frontend-dev` / `frontend-build` / `frontend-lint` — frontend (only JS/TS in repo)
+- `make up` / `make down` — local compose stack (Phase 1+)
 
 ## Hard constraints
 
 - **Rust + Axum only** for all backend services. No JS/TS outside `frontend/`.
-- No root `package.json`; cross-stack orchestration goes through the `justfile`.
+- No root `package.json`; cross-stack orchestration goes through the `Makefile`.
 - New architectural decisions get an ADR in `docs/architecture/`.
 - Domain rules (state machine, roles) live in `crates/licensing-core` exactly once;
   services must not re-implement them.

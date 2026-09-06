@@ -1,8 +1,8 @@
-# Override for developing services on the host (`just dev <service>`) while
+# Override for developing services on the host (`make <service>`) while
 # Kong runs in containers: routes upstream traffic to the host via
 # host.containers.internal and swaps in the host-dev Kong config.
 #
-# Usage: just up-host
+# Usage: make up-host
 services:
   kong:
     environment:

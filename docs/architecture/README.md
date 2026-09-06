@@ -59,7 +59,7 @@
 ├── Cargo.toml              # workspace: crates/* + services/*
 ├── rust-toolchain.toml
 ├── .sqlx/                  # committed offline query-check metadata
-├── justfile                # root orchestration (no JS tooling at root)
+├── Makefile                 # root orchestration (no JS tooling at root)
 ├── crates/
 │   ├── licensing-core/     # pure domain: state machine, roles, event schemas
 │   ├── platform/           # infra helpers: jwt auth middleware, outbox, kafka, redis, sse

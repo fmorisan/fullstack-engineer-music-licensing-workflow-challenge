@@ -3,7 +3,7 @@
 # stack (localhost:5433). Each service's database must exist and be
 # migrated — services migrate at boot, or run the stack once.
 set -euo pipefail
-cd "$(dirname "$0")/../../.."
+cd "$(dirname "$0")/../.."
 
 export SQLX_OFFLINE=false
 for dir in services/*; do

@@ -48,7 +48,7 @@ export const verifyPassword = (password: string, stored: string) => {
 
 export const REFRESH_TOKEN_TTL_DAYS = 7
 
-export const issueRefreshToken = async (user_id: string) => {
+export const issueRefreshToken = async (user_id: User['id']) => {
     const token = randomBytes(32).toString('hex')
     const expires_at = new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000)
     await db('refresh_tokens').insert({ id: randomUUID(), user_id, token, expires_at })

@@ -1,6 +1,7 @@
 import jwt, { JwtPayload } from 'jsonwebtoken'
-import { scryptSync, randomBytes, timingSafeEqual } from 'crypto'
-import { CompanyType, User } from 'knex/types/tables'
+import { scryptSync, randomBytes, randomUUID, timingSafeEqual } from 'crypto'
+import db from '../db'
+import { CompanyType, RefreshToken, User } from 'knex/types/tables'
 
 export interface AuthClaims {
     user_id: string,
@@ -43,4 +44,22 @@ export const verifyPassword = (password: string, stored: string) => {
     const expected = Buffer.from(hash, 'hex')
     const actual = scryptSync(password, salt, expected.length)
     return timingSafeEqual(expected, actual)
+}
+
+export const REFRESH_TOKEN_TTL_DAYS = 7
+
+export const issueRefreshToken = async (user_id: User['id']) => {
+    const token = randomBytes(32).toString('hex')
+    const expires_at = new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000)
+    await db('refresh_tokens').insert({ id: randomUUID(), user_id, token, expires_at })
+    return token
+}
+
+export const findRefreshToken = async (token: string): Promise<RefreshToken | null> => {
+    const row = await db('refresh_tokens').where('token', token).andWhere('expires_at', '>', new Date()).first()
+    return row ?? null
+}
+
+export const revokeRefreshToken = async (token: string) => {
+    await db('refresh_tokens').where('token', token).del()
 }

@@ -7,6 +7,7 @@ import movies from './movies'
 
 const app = express()
 
+app.use(express.json())
 app.use((req, res, next) => { console.log(req.path); return next() })
 app.use('/api/v1/auth', auth)
 app.use('/api/v1/movies', movies)

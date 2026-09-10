@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { validateRequestBody } from "../middlewares";
+import { validateRequestBody, isLoggedIn } from "../middlewares";
 import { findRefreshToken, issueRefreshToken, revokeRefreshToken, signJWT, verifyPassword } from "../controllers/login";
 import db from "../db";
 import z from "zod"
@@ -58,8 +58,18 @@ auth.post('/logout', validateRequestBody(RefreshSchema), async (req, res) => {
     res.status(204).end()
 })
 
-auth.get('/me', (req, res) => {
-    res.send('ok').end()
+auth.get('/me', isLoggedIn, async (req, res) => {
+    const user = await db('users')
+        .join('companies', 'companies.id', 'users.employer')
+        .where('users.id', req.auth!.user_id)
+        .select('users.id', 'users.username', 'users.email', 'companies.name as company', 'companies.kind as user_type')
+        .first()
+
+    if (!user) {
+        return res.status(404).json({error: 'user not found'})
+    }
+
+    res.json(user)
 })
 
 export default auth

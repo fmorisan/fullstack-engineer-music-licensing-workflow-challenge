@@ -58,6 +58,14 @@ declare module 'knex/types/tables' {
         state: LicenseState
     }
 
+    interface RefreshToken {
+        id: UUID,
+        user_id: UUID,
+        token: string,
+        expires_at: Date,
+        created_at: Date
+    }
+
     interface Tables {
         users: User,
         companies: Company,
@@ -66,7 +74,8 @@ declare module 'knex/types/tables' {
         songs: Song,
 
         movie_scenes: MovieScene,
-        licenses: SongLicense
+        licenses: SongLicense,
+        refresh_tokens: RefreshToken
     }
 }
 

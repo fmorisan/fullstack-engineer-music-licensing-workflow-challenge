@@ -1,7 +1,15 @@
 import { Response, Request, RequestHandler, NextFunction } from 'express';
-import { CompanyType, User } from 'knex/types/tables';
+import { CompanyType } from 'knex/types/tables';
 import { z, ZodObject, ZodError, ZodType } from 'zod';
-import { validateJWT } from '../controllers/login';
+import { AuthClaims, validateJWT } from '../controllers/login';
+
+declare global {
+    namespace Express {
+        interface Request {
+            auth?: AuthClaims
+        }
+    }
+}
 
 type ErrorListItem = { errors: ZodError<any> };
 
@@ -19,30 +27,21 @@ export const validateRequestBody = <T extends ZodType>(schema: T): RequestHandle
         }
 };
 
-export const isLoggedIn = (req: Request, res: Response, next: NextFunction) => {
-    if (!req.headers.authorization) {
+export const isLoggedIn: RequestHandler = (req, res, next) => {
+    const claims = validateJWT(req.headers.authorization)
+
+    if (!claims) {
         return res.status(401).json({error: 'unauthorized'})
     }
 
-    const data = validateJWT(req.headers.authorization)
-
-    if (!data) {
-        return res.status(401).json({error: 'unauthorized'})
-    }
-
+    req.auth = claims
     return next()
 }
 
-export const isUserType = (type: CompanyType): RequestHandler<any, any, any, {user: User}> => (req, res, next) => {
-    if (!req.headers.authorization) {
-        return res.status(401).json({error: "unauthorized"})
-    }
-    const isValidJWT = validateJWT(req.headers.authorization)
-
-    if (!isValidJWT) {
-        return res.status(403).json({error: "forbidden"})
+export const isUserType = (type: CompanyType): RequestHandler => (req, res, next) => {
+    if (req.auth?.user_type !== type) {
+        return res.status(403).json({error: 'forbidden'})
     }
 
     return next()
-    
 }

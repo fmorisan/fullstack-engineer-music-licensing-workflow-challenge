@@ -5,7 +5,7 @@ WORKDIR /app
 RUN npm install -g pnpm@10
 
 COPY package.json pnpm-lock.yaml tsconfig.json ./
-COPY knexfile.ts db.ts index.ts ./
+COPY knexfile.ts db.ts index.ts redis.ts ./
 COPY api ./api
 COPY controllers ./controllers
 COPY middlewares ./middlewares

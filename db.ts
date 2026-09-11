@@ -80,7 +80,7 @@ declare module 'knex/types/tables' {
     }
 }
 
-const env = (process.env.KNEX_ENV ?? 'development') as 'development' | 'test' | 'docker'
+const env = (process.env.NODE_ENV ?? 'development') as 'development' | 'test' | 'docker'
 
 const db = knex(config[env])
 

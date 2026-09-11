@@ -4,7 +4,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      KNEX_ENV: docker
+      NODE_ENV: docker
       PGHOST: postgres
       PGPORT: "5432"
       PGUSER: acme
@@ -12,6 +12,7 @@ services:
       PGDATABASE: acme
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-dev-only-secret-do-not-use-in-prod}
+      PORT: 8000
     depends_on:
       postgres:
         condition: service_healthy

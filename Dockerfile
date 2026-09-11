@@ -16,4 +16,4 @@ RUN pnpm install --frozen-lockfile
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "pnpm exec knex migrate:latest --knexfile knexfile.ts && pnpm exec knex seed:run --knexfile knexfile.ts && pnpm exec tsx index.ts"]
+CMD ["sh", "-c", "pnpm exec knex migrate:latest --knexfile knexfile.ts --env docker && pnpm exec knex seed:run --knexfile knexfile.ts --env docker && pnpm exec tsx index.ts"]

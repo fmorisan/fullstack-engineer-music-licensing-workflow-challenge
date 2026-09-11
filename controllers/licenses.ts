@@ -11,7 +11,8 @@ const NewLicenseSchema = z.strictObject({
     scene_number: z.number(),
     song_id: z.uuid(),
     start_offset: z.number(),
-    length: z.number()
+    length: z.number(),
+    license_fee: z.number()
 })
 
 type NewLicenseData = z.output<typeof NewLicenseSchema>
@@ -61,6 +62,7 @@ const createLicense = async (user: AuthClaims, licenseData: NewLicenseData): Pro
         song_id: licenseData.song_id as SongLicense['song_id'],
         start_offset: licenseData.start_offset,
         length: licenseData.length,
+        license_fee: licenseData.license_fee,
         state: 'OFFER'
     }).returning('*')
 

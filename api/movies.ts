@@ -6,7 +6,7 @@ import { uuidv7 } from "uuidv7";
 
 const router = Router()
 
-const STUDIO_ID = '9795f84a-6836-4e13-84e1-7a1db8bd24d0'
+const STUDIO_ID = '849a4821-fb9a-4c6a-8fff-662cc37f6802'
 
 router.get('/', async (req, res) => {
     const movies = await db('movies').where('studio_id', STUDIO_ID)

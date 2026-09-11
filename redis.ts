@@ -40,6 +40,17 @@ export const publishLicenseEvent = async (channels: string[], event: LicenseEven
     await Promise.all(channels.map(channel => client.publish(channel, JSON.stringify(event))))
 }
 
+export const closeRedis = async () => {
+    if (publisher) {
+        await publisher.quit().catch(() => {})
+        publisher = null
+    }
+    if (subscriber) {
+        await subscriber.quit().catch(() => {})
+        subscriber = null
+    }
+}
+
 export const probeRedis = async (timeoutMs = 1000): Promise<boolean> => {
     if (!REDIS_URL) return false
     try {

@@ -154,6 +154,46 @@ const getScene = async (user: AuthClaims, movieId: string, sceneNumber: number):
     return {success: true, value: scene}
 }
 
+const listScenes = async (user: AuthClaims, movieId: Movie['id']): Promise<Result<MovieScene[], string>> => {
+    const movie = await db('movies').where('id', movieId).andWhere('studio_id', user.company_id).first()
+
+    if (!movie) {
+        return {
+            success: false,
+            error: `movie ${movieId} does not exist under studio ${user.company_id}`,
+            status: 404
+        }
+    }
+
+    const scenes = await db('movie_scenes').where('movie_id', movieId).orderBy('scene_number')
+    return {success: true, value: scenes}
+}
+
+const getSceneLicenses = async (user: AuthClaims, movieId: Movie['id'], sceneNumber: number): Promise<Result<any[], string>> => {
+    const scene = await db('movie_scenes')
+        .join('movies', 'movie_scenes.movie_id', 'movies.id')
+        .where('movie_scenes.movie_id', movieId)
+        .andWhere('movies.studio_id', user.company_id)
+        .andWhere('movie_scenes.scene_number', sceneNumber)
+        .select('movie_scenes.*')
+        .first()
+
+    if (!scene) {
+        return {
+            success: false,
+            error: 'scene not found',
+            status: 404
+        }
+    }
+
+    const licenses = await db('licenses')
+        .join('songs', 'licenses.song_id', 'songs.id')
+        .where('licenses.scene_id', scene.id)
+        .select('licenses.*', 'songs.name as song_name', 'songs.author as song_author')
+
+    return {success: true, value: licenses}
+}
+
 const MovieController = {
     NewMovieSchema,
     NewSceneSchema,
@@ -162,7 +202,9 @@ const MovieController = {
     createScene,
     getScene,
     getMovie,
-    getMovieLicenses
+    getMovieLicenses,
+    listScenes,
+    getSceneLicenses
 }
 
 export default MovieController

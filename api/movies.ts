@@ -67,6 +67,24 @@ router.post('/:id/scenes',
     }
 })
 
+router.get('/:id/scenes', isLoggedIn, async (req, res) => {
+    const result = await MovieController.listScenes(req.auth!, req.params.id as any)
+    if (result.success) {
+        res.json(result.value)
+    } else {
+        res.status(result.status ?? 400).json({error: result.error})
+    }
+})
+
+router.get('/:id/scenes/:n/licenses', isLoggedIn, async (req, res) => {
+    const result = await MovieController.getSceneLicenses(req.auth!, req.params.id as any, Number(req.params.n))
+    if (result.success) {
+        res.json(result.value)
+    } else {
+        res.status(result.status ?? 400).json({error: result.error})
+    }
+})
+
 router.get('/:id/scenes/:n', isLoggedIn, async (req, res) => {
     const result = await MovieController.getScene(req.auth!, req.params.id as any, Number(req.params.n))
     if (result.success) {

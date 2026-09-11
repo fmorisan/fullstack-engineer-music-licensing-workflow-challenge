@@ -24,7 +24,7 @@ licenses.patch('/:id',
     validateRequestBody(LicenseController.UpdateLicenseSchema),
     async (req, res) => {
 
-    const result = await LicenseController.updateLicense(req.auth!, req.params.id, req.body)
+    const result = await LicenseController.updateLicense(req.auth!, req.params.id as string, req.body)
 
     if (result.success) {
         res.json(result.value)

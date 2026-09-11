@@ -1,85 +1,53 @@
 import { Router } from "express";
-import db from "../db";
-import z from "zod";
-import { validateRequestBody } from "../middlewares";
-import { uuidv7 } from "uuidv7";
+import MovieController from "../controllers/movie";
+import { validateRequestBody, isLoggedIn, isUserType } from "../middlewares";
 
 const router = Router()
 
-const STUDIO_ID = '849a4821-fb9a-4c6a-8fff-662cc37f6802'
-
-router.get('/', async (req, res) => {
-    const movies = await db('movies').where('studio_id', STUDIO_ID)
-
-    if (movies.length === 0) {
-        return res.status(404).json({error: 'movie not found'})
-    }
-
-    res.json(movies)
-})
-
-const NewMovieSchema = z.object({
-    name: z.string(),
-    description: z.string()
-})
-
-router.post('/', validateRequestBody(NewMovieSchema), async (req, res) => {
-    const inserted = await db('movies').insert({
-        id: uuidv7() as any,
-        name: req.body.name,
-        description: req.body.description,
-        studio_id: STUDIO_ID
-    }).returning('*')
-
-    if (inserted.length > 0) {
-        res.json(inserted[0]!)
+router.get('/', isLoggedIn, async (req, res) => {
+    const result = await MovieController.listMovies(req.auth!)
+    if (result.success) {
+        res.json(result.value)
     } else {
-        res.status(500).json({error: 'movie creation failed'})
+        res.status(result.status ?? 400).json({error: result.error})
     }
 })
 
-const NewSceneSchema = z.object({
-    name: z.string(),
-    start_offset: z.number(),
-    length: z.number()
+router.post('/',
+    isLoggedIn,
+    isUserType('movie_studio'),
+    validateRequestBody(MovieController.NewMovieSchema),
+    async (req, res) => {
+
+    const result = await MovieController.createMovie(req.auth!, req.body)
+    if (result.success) {
+        res.json(result.value)
+    } else {
+        res.status(result.status ?? 400).json({error: result.error})
+    }
 })
 
-router.post('/:id/scenes', validateRequestBody(NewSceneSchema), async (req, res) => {
-    const movie = await db('movies').where('id', req.params.id).first()
-    if (!movie) {
-        return res.status(404).json({error: 'movie not found'})
+router.post('/:id/scenes',
+    isLoggedIn,
+    isUserType('movie_studio'),
+    validateRequestBody(MovieController.NewSceneSchema),
+    async (req, res) => {
+
+    const result = await MovieController.createScene(req.auth!, req.params.id as any, req.body)
+    if (result.success) {
+        res.json(result.value)
+    } else {
+        res.status(result.status ?? 400).json({error: result.error})
     }
-
-    const scene = await db.transaction(async (t) => {
-        const { max_scene_number } = await t('movie_scenes')
-            .where('movie_id', req.params.id)
-            .max({ max_scene_number: 'scene_number' })
-            .first() ?? {}
-
-        return await t('movie_scenes').insert({
-            id: uuidv7() as any,
-            movie_id: req.params.id,
-            name: req.body.name,
-            scene_number: (max_scene_number ?? 0) + 1,
-            start_offset: req.body.start_offset,
-            length: req.body.length
-        }).returning('*')
-    })
-
-    res.json(scene[0]!)
 })
 
-router.get('/:id/scenes/:n', async (req, res) => {
-    const scene = await db('movie_scenes')
-        .where('movie_id', req.params.id)
-        .andWhere('scene_number', req.params.n)
-        .first()
-
-    if (!scene) {
-        return res.status(404).json({error: 'scene not found'})
+router.get('/:id/scenes/:n', isLoggedIn, async (req, res) => {
+    const result = await MovieController.getScene(req.auth!, req.params.id as any, Number(req.params.n))
+    if (result.success) {
+        res.json(result.value)
+    } else {
+        res.status(result.status ?? 400).json({error: result.error})
     }
-
-    res.json(scene)
 })
 
 const movies = router

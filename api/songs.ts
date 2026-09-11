@@ -1,6 +1,7 @@
 import { Router } from "express";
 import SongController from "../controllers/song";
 import { isLoggedIn, isUserType, validateRequestBody } from "../middlewares";
+import z from "zod";
 
 const songs = Router()
 
@@ -17,6 +18,22 @@ songs.post('/',
     } else {
         res.status(400).json({error: result.error})
     }
+})
+
+const SearchQuerySchema = z.object({
+    q: z.string().trim().optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(25),
+    offset: z.coerce.number().int().min(0).default(0)
+})
+
+songs.get('/search', isLoggedIn, async (req, res) => {
+    const parsed = SearchQuerySchema.safeParse(req.query)
+
+    if (!parsed.success) {
+        return res.status(400).json({error: 'malformed query'})
+    }
+
+    res.json(await SongController.searchSongs(parsed.data))
 })
 
 songs.get('/:id',

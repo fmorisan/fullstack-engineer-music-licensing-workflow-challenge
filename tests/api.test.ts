@@ -165,6 +165,71 @@ describe('songs', () => {
         assert.equal(res.body.name, 'Neon Skyline')
         assert.equal(res.body.length_seconds, 214)
     })
+
+    it('requires auth to search songs', async () => {
+        const res = await request(app).get('/api/v1/songs/search').query({ q: 'neon' })
+        assert.equal(res.status, 401)
+    })
+
+    it('searches songs by name and author case-insensitively', async () => {
+        const token = await loginAs(app, LABEL_EMAIL)
+
+        const byName = await request(app).get('/api/v1/songs/search')
+            .query({ q: 'neon sky' })
+            .set('Authorization', `Bearer ${token}`)
+        assert.equal(byName.status, 200)
+        assert.ok(byName.body.total >= 1)
+        assert.ok(byName.body.items.some((s: any) => s.name === 'Neon Skyline'))
+        assert.equal(byName.body.items[0].label, 'Evil Records')
+
+        const byAuthor = await request(app).get('/api/v1/songs/search')
+            .query({ q: 'volts' })
+            .set('Authorization', `Bearer ${token}`)
+        assert.ok(byAuthor.body.items.some((s: any) => s.name === 'Neon Skyline'))
+    })
+
+    it('returns empty items for unmatched searches', async () => {
+        const token = await loginAs(app, LABEL_EMAIL)
+        const res = await request(app).get('/api/v1/songs/search')
+            .query({ q: 'zzz-no-such-song' })
+            .set('Authorization', `Bearer ${token}`)
+        assert.equal(res.status, 200)
+        assert.deepEqual(res.body.items, [])
+        assert.equal(res.body.total, 0)
+    })
+
+    it('returns the catalog when no q is given', async () => {
+        const token = await loginAs(app, LABEL_EMAIL)
+        const res = await request(app).get('/api/v1/songs/search')
+            .set('Authorization', `Bearer ${token}`)
+        assert.equal(res.status, 200)
+        assert.ok(res.body.total >= 1)
+        assert.equal(res.body.limit, 25)
+        assert.equal(res.body.offset, 0)
+    })
+
+    it('paginates song search results', async () => {
+        const token = await loginAs(app, LABEL_EMAIL)
+        const page1 = await request(app).get('/api/v1/songs/search')
+            .query({ limit: 1, offset: 0 })
+            .set('Authorization', `Bearer ${token}`)
+        assert.equal(page1.body.items.length, 1)
+
+        if (page1.body.total > 1) {
+            const page2 = await request(app).get('/api/v1/songs/search')
+                .query({ limit: 1, offset: 1 })
+                .set('Authorization', `Bearer ${token}`)
+            assert.notEqual(page1.body.items[0].id, page2.body.items[0].id)
+        }
+    })
+
+    it('rejects malformed pagination params', async () => {
+        const token = await loginAs(app, LABEL_EMAIL)
+        const res = await request(app).get('/api/v1/songs/search')
+            .query({ limit: 'abc' })
+            .set('Authorization', `Bearer ${token}`)
+        assert.equal(res.status, 400)
+    })
 })
 
 describe('licensing workflow', () => {

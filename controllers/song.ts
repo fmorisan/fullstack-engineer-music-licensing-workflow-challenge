@@ -40,6 +40,28 @@ const createSong = async (user: AuthClaims, songData: CreateSongData): Promise<R
     }
 }
 
+type SearchParams = { q?: string | undefined, limit: number, offset: number }
+
+const searchSongs = async (query: SearchParams) => {
+    const base = db('songs')
+        .join('companies', 'companies.id', 'songs.label_id')
+        .select('songs.id', 'songs.name', 'songs.author', 'songs.length_seconds', 'companies.name as label')
+
+    const filtered = query.q
+        ? base.clone().whereILike('songs.name', `%${query.q}%`).orWhereILike('songs.author', `%${query.q}%`)
+        : base.clone()
+
+    const items = await filtered.clone().limit(query.limit).offset(query.offset)
+    const [{ total }] = await filtered.clone().count({ total: '*' })
+
+    return {
+        items,
+        total: Number(total),
+        limit: query.limit,
+        offset: query.offset
+    }
+}
+
 const getSong = async (id: string) => {
     return await db('songs').where('id', id).first()
 }
@@ -72,7 +94,8 @@ const SongController = {
     createSong,
     uploadSongBoxArt,
     getSong,
-    getSongLicenses
+    getSongLicenses,
+    searchSongs
 }
 
 export default SongController

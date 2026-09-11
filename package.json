@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "tsx --test tests/api.test.ts"
+    "test": "KNEX_ENV=test JWT_SECRET=test-secret tsx --test tests/api.test.ts"
   },
   "keywords": [],
   "author": "",

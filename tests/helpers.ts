@@ -1,15 +1,17 @@
-import { before, after } from 'node:test'
 import fs from 'node:fs'
 import knex, { Knex } from 'knex'
 import request from 'supertest'
 import config from '../knexfile'
-
-process.env.KNEX_ENV = 'test'
-process.env.JWT_SECRET = 'test-secret'
+import app from '../api'
+import appDb from '../db'
 
 let _db: Knex | null = null
 
 export async function setupDb() {
+    if (process.env.KNEX_ENV !== 'test') {
+        throw new Error('tests must run with KNEX_ENV=test (use pnpm test)')
+    }
+
     await fs.promises.rm('./test.sqlite3', { force: true })
     const db = knex((config as any).test)
     await db.migrate.latest()
@@ -18,9 +20,8 @@ export async function setupDb() {
     return db
 }
 
-export async function getApp() {
-    const mod = await import('../api')
-    return mod.default
+export function getApp() {
+    return app
 }
 
 export async function teardownDb() {
@@ -28,7 +29,6 @@ export async function teardownDb() {
         await _db.destroy()
         _db = null
     }
-    const { default: appDb } = await import('../db')
     await appDb.destroy()
     await fs.promises.rm('./test.sqlite3', { force: true })
 }

@@ -34,4 +34,4 @@ jobs:
 
       - run: pnpm exec tsc --noEmit
 
-      - run: pnpm test
+      - run: pnpm test:local && pnpm test:redis

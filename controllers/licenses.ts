@@ -2,7 +2,7 @@ import z from "zod"
 import { AuthClaims } from "./login"
 import { LicenseState, SongLicense } from "knex/types/tables"
 import db from "../db"
-import { publishLicenseEvent } from "../redis"
+import { getSubscriber, probeRedis, publishLicenseEvent } from "../redis"
 import { uuidv7 } from "uuidv7"
 import { Response } from "express"
 
@@ -231,15 +231,82 @@ const updateLicense = async (user: AuthClaims, licenseId: string, updateData: Up
     return result
 }
 
-const licenseEventStream = (user: AuthClaims, res: Response) => {
+const streamClients = new Map<string, Set<Response>>()
 
+const ensureSubscription = async (channel: string, res: Response) => {
+    const sub = await getSubscriber()
+    if (!sub) {
+        throw new Error('redis unavailable')
+    }
+
+    let clients = streamClients.get(channel)
+    if (!clients) {
+        clients = new Set()
+        streamClients.set(channel, clients)
+        await sub.subscribe(channel, (message) => {
+            for (const client of streamClients.get(channel) ?? []) {
+                client.write(`event: license\ndata: ${message}\n\n`)
+            }
+        })
+    }
+    clients.add(res)
+}
+
+const releaseSubscription = async (channel: string, res: Response) => {
+    const clients = streamClients.get(channel)
+    if (!clients) {
+        return
+    }
+
+    clients.delete(res)
+    if (clients.size === 0) {
+        streamClients.delete(channel)
+        const sub = await getSubscriber()
+        if (sub) {
+            await sub.unsubscribe(channel).catch(() => {})
+        }
+    }
+}
+
+const licenseEventStream = async (user: AuthClaims, res: Response) => {
+    const alive = await probeRedis(1000)
+    if (!alive) {
+        return res.status(503).json({error: 'realtime unavailable'})
+    }
+
+    const channel = `events:${user.company_id}`
+
+    try {
+        await ensureSubscription(channel, res)
+    } catch (err) {
+        return res.status(503).json({error: 'realtime unavailable'})
+    }
+
+    res.setHeader('Connection', 'keep-alive')
+    res.setHeader('Cache-Control', 'no-cache')
+    res.setHeader('Content-Type', 'text/event-stream')
+    res.setHeader('X-Accel-Buffering', 'no')
+    res.flushHeaders()
+
+    res.write('retry: 3000\n\n')
+    res.write(`event: connected\ndata: {"channel":"${channel}"}\n\n`)
+
+    const heartbeat = setInterval(() => {
+        res.write(': ping\n\n')
+    }, 25000)
+
+    res.on('close', () => {
+        clearInterval(heartbeat)
+        releaseSubscription(channel, res)
+    })
 }
 
 const LicenseController = {
     NewLicenseSchema,
     createLicense,
     UpdateLicenseSchema,
-    updateLicense
+    updateLicense,
+    licenseEventStream
 }
 
 export default LicenseController

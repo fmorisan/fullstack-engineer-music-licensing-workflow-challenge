@@ -1,0 +1,12 @@
+node_modules
+dist
+*.sqlite3
+.env
+.env.*
+!.env.example
+.git
+.github
+tests
+Dockerfile
+compose.yml
+.DS_Store

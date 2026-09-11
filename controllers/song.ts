@@ -12,13 +12,15 @@ const CreateSongSchema = z.object({
 type CreateSongData = z.infer<typeof CreateSongSchema>
 
 const createSong = async (user: AuthClaims, songData: CreateSongData) => {
-    const song = await db('songs').insert({
+    const inserted = await db('songs').insert({
         id: uuidv7() as any,
         name: songData.name,
         author: songData.author,
         length_seconds: songData.length_seconds,
         label_id: user.company_id as any
-    }).returning('*').first()
+    }).returning('*')
+
+    const song = inserted[0]
 
     if (!song) {
         return {

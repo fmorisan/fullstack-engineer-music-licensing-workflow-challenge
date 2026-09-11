@@ -17,4 +17,10 @@ app.use('/api/v1/songs', songs)
 app.use('/api/v1/licenses', licenses)
 app.get('/api/v1/health', (req, res) => res.json({ok: true}))
 
+app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
+    console.error(err)
+    const status = (err as any)?.status ?? (err as any)?.statusCode ?? 500
+    res.status(status).json({error: status >= 500 ? 'internal server error' : err instanceof Error ? err.message : 'bad request'})
+})
+
 export default app

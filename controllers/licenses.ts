@@ -122,7 +122,9 @@ async function applyTransition(licenseId: string, fromState: LicenseState, updat
         .andWhere('state', fromState)
         .returning('*')
 
-    if (updated.length === 0) {
+    let update = updated.at(0)
+
+    if (!update) {
         return {
             success: false,
             error: `license is no longer in state ${fromState}`,
@@ -134,7 +136,7 @@ async function applyTransition(licenseId: string, fromState: LicenseState, updat
 
     return {
         success: true,
-        value: updated[0]!
+        value: update
     }
 }
 

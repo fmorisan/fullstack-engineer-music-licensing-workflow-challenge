@@ -31,6 +31,7 @@ declare module 'knex/types/tables' {
         id: UUID,
         name: string,
         author: string,
+        length_seconds: number,
         // object-storage key for song boxart
         boxart?: string,
         label_id: UUID

@@ -3,6 +3,7 @@ import { AuthClaims } from "./login"
 import { LicenseState, SongLicense } from "knex/types/tables"
 import db from "../db"
 import { uuidv7 } from "uuidv7"
+import { Response } from "express"
 
 type Result<T, E> = {success: true, value: T} | {success: false, error: E, status?: number}
 
@@ -189,6 +190,10 @@ const updateLicense = async (user: AuthClaims, licenseId: string, updateData: Up
         success: false,
         error: 'unreachable'
     }
+}
+
+const licenseEventStream = (user: AuthClaims, res: Response) => {
+
 }
 
 const LicenseController = {

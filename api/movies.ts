@@ -27,6 +27,32 @@ router.post('/',
     }
 })
 
+router.get('/:id',
+        isLoggedIn,
+        isUserType('movie_studio'),
+        async (req, res) => {
+    const result = await MovieController.getMovie(req.auth!, req.params.id as any)
+
+    if (result.success) {
+        res.json(result.value)
+    } else {
+        res.status(404).json({error: 'not found'})
+    }
+})
+
+router.get('/:id/licenses',
+        isLoggedIn,
+        isUserType('movie_studio'),
+        async (req, res) => {
+    const result = await MovieController.getMovieLicenses(req.auth!, req.params.id as any)
+
+    if (result.success) {
+        res.json(result.value)
+    } else {
+        res.status(404).json({error: 'not found'})
+    }
+})
+
 router.post('/:id/scenes',
     isLoggedIn,
     isUserType('movie_studio'),

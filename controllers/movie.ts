@@ -54,6 +54,56 @@ const createMovie = async (user: AuthClaims, movieData: NewMovieData): Promise<R
     return {success: true, value: inserted[0]!}
 }
 
+const getMovie = async (user: AuthClaims, movieId: Movie['id']): Promise<Result<Movie & {scenes: any[]}, string>> => {
+    const movie = await db('movies')
+        .where('id', movieId)
+        .andWhere('studio_id', user.company_id)
+        .first()
+
+    if (!movie) {
+        return {
+            success: false,
+            error: 'movie not found'
+        }
+    }
+
+    const scenes = await db('movie_scenes').where('movie_id', movie.id)
+    
+    return {
+        success: true,
+        value: {
+            ...movie,
+            scenes
+        }
+    }
+}
+
+const getMovieLicenses = async (user: AuthClaims, movieId: Movie['id']): Promise<Result<Movie & {licenses: any[]}, string>> => {
+    const movie = await db('movies')
+        .where('id', movieId)
+        .andWhere('studio_id', user.company_id)
+        .first()
+
+    if (!movie) {
+        return {
+            success: false,
+            error: 'movie not found',
+        }
+    }
+
+    const licenses = await db('movie_scenes')
+        .where('movie_id', movie.id)
+        .rightOuterJoin('licenses', 'movie_scenes.id', 'licenses.scene_id')
+    
+    return {
+        success: true,
+        value: {
+            ...movie,
+            licenses
+        },
+    }
+}
+
 const createScene = async (user: AuthClaims, movieId: Movie['id'], sceneData: NewSceneData): Promise<Result<MovieScene, string>> => {
     const movie = await db('movies').where('id', movieId).andWhere('studio_id', user.company_id).first()
 
@@ -110,7 +160,9 @@ const MovieController = {
     listMovies,
     createMovie,
     createScene,
-    getScene
+    getScene,
+    getMovie,
+    getMovieLicenses
 }
 
 export default MovieController

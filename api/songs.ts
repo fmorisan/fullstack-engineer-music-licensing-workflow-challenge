@@ -1,10 +1,11 @@
 import { Router } from "express";
 import SongController from "../controllers/song";
-import { isUserType, validateRequestBody } from "../middlewares";
+import { isLoggedIn, isUserType, validateRequestBody } from "../middlewares";
 
 const songs = Router()
 
 songs.post('/',
+    isLoggedIn,
     isUserType('record_label'),
     validateRequestBody(SongController.CreateSongSchema),
     async (req, res) => {

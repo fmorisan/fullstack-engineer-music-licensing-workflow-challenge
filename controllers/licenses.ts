@@ -138,10 +138,11 @@ async function applyTransition(licenseId: string, fromState: LicenseState, updat
 }
 
 const updateLicense = async (user: AuthClaims, licenseId: string, updateData: UpdateLicenseData): Promise<Result<SongLicense, string>> => {
-    const license = await db('licenses').where('id', licenseId)
+    const license = await db('licenses').where('licenses.id', licenseId)
         .join('movie_scenes', 'licenses.scene_id', 'movie_scenes.id')
         .join('movies', 'movie_scenes.movie_id', 'movies.id')
         .join('songs', 'licenses.song_id', 'songs.id')
+        .select('licenses.*', 'movies.studio_id', 'songs.label_id')
         .first()
 
     if (!license) {

@@ -80,6 +80,8 @@ declare module 'knex/types/tables' {
     }
 }
 
-const db = knex(config.development)
+const env = (process.env.KNEX_ENV ?? 'development') as 'development' | 'test' | 'docker'
+
+const db = knex(config[env])
 
 export default db

@@ -1,3 +1,11 @@
+const postgresConnection = process.env.PGHOST ? {
+    host: process.env.PGHOST,
+    port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
+    user: process.env.PGUSER ?? 'acme',
+    password: process.env.PGPASSWORD ?? 'acme',
+    database: process.env.PGDATABASE ?? 'acme'
+} : undefined
+
 export default {
   development: {
     client: 'sqlite3',
@@ -6,27 +14,21 @@ export default {
     },
     useNullAsDefault: true
   },
-  staging: {
-    client: 'postgresql',
+  test: {
+    client: 'sqlite3',
     connection: {
-      database: 'my_db',
-      user:     'username',
-      password: 'password'
+      filename: './test.sqlite3'
     },
-    pool: {
-      min: 2,
-      max: 10
-    },
-    migrations: {
-      tableName: 'knex_migrations'
-    }
+    useNullAsDefault: true
   },
-  production: {
+  docker: {
     client: 'postgresql',
-    connection: {
-      database: 'my_db',
-      user:     'username',
-      password: 'password'
+    connection: postgresConnection ?? {
+      host: 'postgres',
+      port: 5432,
+      user: 'acme',
+      password: 'acme',
+      database: 'acme'
     },
     pool: {
       min: 2,
@@ -36,5 +38,4 @@ export default {
       tableName: 'knex_migrations'
     }
   }
-
 };

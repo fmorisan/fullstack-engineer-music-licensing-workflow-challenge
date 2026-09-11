@@ -16,6 +16,7 @@
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "knex": "^3.3.0",
+    "pg": "^8.23.0",
     "sqlite3": "^6.0.1",
     "typescript": "^7.0.2",
     "uuidv7": "^1.2.1",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.23.13"
   }
 }

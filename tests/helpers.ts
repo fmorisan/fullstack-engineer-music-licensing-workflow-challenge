@@ -4,6 +4,7 @@ import request from 'supertest'
 import config from '../knexfile'
 import app from '../api'
 import appDb from '../db'
+import { closeRedis } from '../redis'
 
 let _db: Knex | null = null
 
@@ -30,6 +31,7 @@ export async function teardownDb() {
         _db = null
     }
     await appDb.destroy()
+    await closeRedis()
     await fs.promises.rm('./test.sqlite3', { force: true })
 }
 

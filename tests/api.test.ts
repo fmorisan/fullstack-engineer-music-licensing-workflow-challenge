@@ -263,6 +263,13 @@ describe('licensing workflow', () => {
         assert.equal(res.status, 403)
     })
 
+    it('returns 503 for the events stream when redis is not configured', async () => {
+        const token = await loginAs(app, STUDIO_EMAIL)
+        const res = await request(app).get('/api/v1/licenses/events')
+            .set('Authorization', `Bearer ${token}`)
+        assert.equal(res.status, 503)
+    })
+
     it('lists movie licenses with song and state', async () => {
         const res = await request(app).get(`/api/v1/movies/${movieId}/licenses`)
             .set('Authorization', `Bearer ${studioToken}`)

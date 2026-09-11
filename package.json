@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "KNEX_ENV=test JWT_SECRET=test-secret tsx --test tests/api.test.ts"
+    "test": "KNEX_ENV=test JWT_SECRET=test-secret tsx --test tests/api.test.ts && KNEX_ENV=test JWT_SECRET=test-secret REDIS_URL=redis://localhost:6379 tsx --test tests/events.test.ts"
   },
   "keywords": [],
   "author": "",

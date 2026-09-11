@@ -24,6 +24,22 @@ export const getSubscriber = async () => {
     return subscriber
 }
 
+export type LicenseEvent = {
+    type: 'created' | 'offered' | 'countered' | 'accepted' | 'rejected',
+    license_id: string,
+    song_id: string,
+    from_state: string | null,
+    to_state: string,
+    license_fee: number | null,
+    at: string
+}
+
+export const publishLicenseEvent = async (channels: string[], event: LicenseEvent) => {
+    const client = await getPublisher()
+    if (!client) return
+    await Promise.all(channels.map(channel => client.publish(channel, JSON.stringify(event))))
+}
+
 export const probeRedis = async (timeoutMs = 1000): Promise<boolean> => {
     if (!REDIS_URL) return false
     try {

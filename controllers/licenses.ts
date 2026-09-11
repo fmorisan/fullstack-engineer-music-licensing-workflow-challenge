@@ -2,6 +2,7 @@ import z from "zod"
 import { AuthClaims } from "./login"
 import { LicenseState, SongLicense } from "knex/types/tables"
 import db from "../db"
+import { publishLicenseEvent } from "../redis"
 import { uuidv7 } from "uuidv7"
 import { Response } from "express"
 
@@ -67,7 +68,22 @@ const createLicense = async (user: AuthClaims, licenseData: NewLicenseData): Pro
         state: 'OFFER'
     }).returning('*')
 
-    return {success: true, value: license[0]!}
+    const created = license[0]!
+
+    publishLicenseEvent(
+        [`events:${user.company_id}`, `events:${song.label_id}`],
+        {
+            type: 'created',
+            license_id: created.id,
+            song_id: created.song_id,
+            from_state: null,
+            to_state: 'OFFER',
+            license_fee: created.license_fee,
+            at: new Date().toISOString()
+        }
+    ).catch(err => console.error('license event publish failed:', err.message))
+
+    return {success: true, value: created}
 }
 
 const UpdateLicenseSchema = z.discriminatedUnion('state', [
@@ -164,34 +180,55 @@ const updateLicense = async (user: AuthClaims, licenseId: string, updateData: Up
             status: 404
         }
     }
-
+    let result: Result<SongLicense, string>
     switch (updateData.state) {
         case "OFFER":
             if (!canOffer(user, license)) {
                 return { success: false, error: 'only movie studios can re-offer after a counter', status: 403 }
             }
-            return await applyTransition(licenseId, 'COUNTER', { license_fee: updateData.license_fee, state: 'OFFER' })
+            result = await applyTransition(licenseId, 'COUNTER', { license_fee: updateData.license_fee, state: 'OFFER' })
+            break
         case "COUNTER":
             if (!canCounter(user, license)) {
                 return { success: false, error: 'only record labels can counter an offer', status: 403 }
             }
-            return await applyTransition(licenseId, 'OFFER', { license_fee: updateData.license_fee, state: 'COUNTER' })
+            result = await applyTransition(licenseId, 'OFFER', { license_fee: updateData.license_fee, state: 'COUNTER' })
+            break
         case "ACCEPTED":
             if (!canClose(user, license)) {
                 return { success: false, error: 'you cannot accept this license in its current state', status: 403 }
             }
-            return await applyTransition(licenseId, license.state, { state: 'ACCEPTED' })
+            result = await applyTransition(licenseId, license.state, { state: 'ACCEPTED' })
+            break
         case "REJECTED":
             if (!canClose(user, license)) {
                 return { success: false, error: 'you cannot reject this license in its current state', status: 403 }
             }
-            return await applyTransition(licenseId, license.state, { state: 'REJECTED' })
+            result = await applyTransition(licenseId, license.state, { state: 'REJECTED' })
+            break
+        default:
+            return {
+                success: false,
+                error: 'unreachable'
+            }
     }
 
-    return {
-        success: false,
-        error: 'unreachable'
+    if (result.success) {
+        publishLicenseEvent(
+            [`events:${license.studio_id}`, `events:${license.label_id}`],
+            {
+                type: ({ OFFER: 'offered', COUNTER: 'countered', ACCEPTED: 'accepted', REJECTED: 'rejected' } as const)[updateData.state],
+                license_id: licenseId,
+                song_id: license.song_id,
+                from_state: license.state,
+                to_state: result.value.state,
+                license_fee: result.value.license_fee,
+                at: new Date().toISOString()
+            }
+        ).catch(err => console.error('license event publish failed:', err.message))
     }
+
+    return result
 }
 
 const licenseEventStream = (user: AuthClaims, res: Response) => {

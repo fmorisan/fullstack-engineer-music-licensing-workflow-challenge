@@ -1,9 +1,9 @@
 const postgresConnection = process.env.PGHOST ? {
     host: process.env.PGHOST,
     port: process.env.PGPORT ? Number(process.env.PGPORT) : 5432,
-    user: process.env.PGUSER,
-    password: process.env.PGPASSWORD,
-    database: process.env.PGDATABASE
+    user: process.env.PGUSER ?? 'acme',
+    password: process.env.PGPASSWORD ?? 'acme',
+    database: process.env.PGDATABASE ?? 'acme'
 } : undefined
 
 export default {

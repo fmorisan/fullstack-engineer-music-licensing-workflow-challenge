@@ -10,7 +10,6 @@ import licenses from './licenses'
 const app = express()
 
 app.use(express.json())
-app.use((req, res, next) => { console.log(req.path); return next() })
 app.use('/api/v1/auth', auth)
 app.use('/api/v1/movies', movies)
 app.use('/api/v1/songs', songs)

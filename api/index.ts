@@ -14,7 +14,10 @@ app.use('/api/v1/auth', auth)
 app.use('/api/v1/movies', movies)
 app.use('/api/v1/songs', songs)
 app.use('/api/v1/licenses', licenses)
-app.get('/api/v1/health', (req, res) => res.json({ok: true}))
+app.get('/api/v1/health', async (req, res) => {
+    const { probeRedis } = await import('../redis')
+    res.json({ok: true, redis: await probeRedis(500)})
+})
 
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
     console.error(err)

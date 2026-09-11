@@ -35,23 +35,8 @@ licenses.patch('/:id',
 
 licenses.get('/events',
     isLoggedIn,
-    (req, res) => {
-        res.setHeader('Connection', 'keep-alive')
-        res.setHeader('Cache-Control', 'no-cache')
-        res.setHeader('Content-Type', 'text/event-stream')
-        res.flushHeaders()
-
-        // TODO: connect to pubsub, get events
-
-        let id = 1
-        const interval = setInterval(() => {
-            res.write(JSON.stringify({event: 'heartbeat', id: id++}))
-        }, 500)
-
-        res.on('close', () => {
-            clearInterval(interval)
-            res.end()
-        })
+    async (req, res) => {
+        await LicenseController.licenseEventStream(req.auth!, res)
 })
 
 export default licenses

@@ -54,7 +54,7 @@ const createMovie = async (user: AuthClaims, movieData: NewMovieData): Promise<R
     return {success: true, value: inserted[0]!}
 }
 
-const createScene = async (user: AuthClaims, movieId: string, sceneData: NewSceneData): Promise<Result<MovieScene, string>> => {
+const createScene = async (user: AuthClaims, movieId: Movie['id'], sceneData: NewSceneData): Promise<Result<MovieScene, string>> => {
     const movie = await db('movies').where('id', movieId).andWhere('studio_id', user.company_id).first()
 
     if (!movie) {

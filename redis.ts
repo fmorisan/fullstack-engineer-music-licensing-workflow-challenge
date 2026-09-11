@@ -1,9 +1,9 @@
-import { createClient } from 'redis'
+import { createClient, type RedisClientType } from 'redis'
 
 const REDIS_URL = process.env.REDIS_URL
 
-let publisher: ReturnType<typeof createClient> | null = null
-let subscriber: ReturnType<typeof createClient> | null = null
+let publisher: RedisClientType | null = null
+let subscriber: RedisClientType | null = null
 
 const connect = async (url: string) => {
     const client = createClient({ url })

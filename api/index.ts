@@ -6,6 +6,7 @@ import auth from './auth'
 import movies from './movies'
 import songs from './songs'
 import licenses from './licenses'
+import { probeRedis } from '../redis'
 
 const app = express()
 
@@ -15,7 +16,6 @@ app.use('/api/v1/movies', movies)
 app.use('/api/v1/songs', songs)
 app.use('/api/v1/licenses', licenses)
 app.get('/api/v1/health', async (req, res) => {
-    const { probeRedis } = await import('../redis')
     res.json({ok: true, redis: await probeRedis(500)})
 })
 

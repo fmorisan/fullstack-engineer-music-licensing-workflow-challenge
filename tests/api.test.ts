@@ -131,6 +131,20 @@ describe('movies and scenes', () => {
             .set('Authorization', `Bearer ${token}`)
         assert.equal(res.status, 404)
     })
+
+    it('lists scenes for a movie', async () => {
+        const token = await loginAs(app, STUDIO_EMAIL)
+        const movies = await request(app).get('/api/v1/movies')
+            .set('Authorization', `Bearer ${token}`)
+        const movieId = movies.body[0].id
+
+        const res = await request(app).get(`/api/v1/movies/${movieId}/scenes`)
+            .set('Authorization', `Bearer ${token}`)
+        assert.equal(res.status, 200)
+        assert.ok(Array.isArray(res.body))
+        assert.ok(res.body.length >= 2)
+        assert.ok(res.body[0].scene_number <= res.body[1].scene_number)
+    })
 })
 
 describe('songs', () => {
@@ -256,6 +270,14 @@ describe('licensing workflow', () => {
         const licenses = res.body.licenses
         assert.ok(Array.isArray(licenses))
         assert.ok(licenses.some((l: any) => l.id === licenseId && l.state === 'ACCEPTED'))
+    })
+
+    it('lists scene licenses with song details', async () => {
+        const res = await request(app).get(`/api/v1/movies/${movieId}/scenes/1/licenses`)
+            .set('Authorization', `Bearer ${studioToken}`)
+        assert.equal(res.status, 200)
+        assert.ok(Array.isArray(res.body))
+        assert.ok(res.body.some((l: any) => l.id === licenseId && l.state === 'ACCEPTED' && l.song_name === 'Deal Music'))
     })
 
     it('lists song licenses for the label', async () => {
